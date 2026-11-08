@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"gopkg.in/yaml.v3"
 
 	"user-prompt-checker/internal/checker"
 	"user-prompt-checker/internal/eval"
@@ -35,7 +36,7 @@ type checkCmd struct {
 }
 
 type evaluateCmd struct {
-	Cases  string `help:"Path to evaluation cases JSON." default:"cases.json"`
+	Cases  string `help:"Path to evaluation cases YAML or JSON." default:"cases.yaml"`
 	Output string `help:"Path to write results JSON." default:"results.json"`
 }
 
@@ -164,7 +165,7 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 				fmt.Fprintf(stderr, "Error: %v\n", err)
 				return 1
 			}
-			if err := json.Unmarshal(b, &history); err != nil {
+			if err := yaml.Unmarshal(b, &history); err != nil {
 				fmt.Fprintf(stderr, "Error: %v\n", err)
 				return 1
 			}

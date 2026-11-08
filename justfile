@@ -28,6 +28,6 @@ lint: fmt vet
 check prompt history="": build ollama::status
     ./user-prompt-checker check {{ quote(prompt) }} {{ if history != "" { "--history " + quote(history) } else { "" } }}
 
-# Run prompt evaluation benchmark across cases.json
-evaluate cases="cases.json" output="results.json": build ollama::status
+# Run prompt evaluation benchmark across cases.yaml
+evaluate cases="cases.yaml" output="results.json": build ollama::status
     ./user-prompt-checker evaluate --cases {{ quote(cases) }} --output {{ quote(output) }}

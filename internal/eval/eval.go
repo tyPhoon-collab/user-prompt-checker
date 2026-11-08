@@ -10,15 +10,17 @@ import (
 	"sort"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"user-prompt-checker/internal/checker"
 )
 
 type Case struct {
-	ID       string            `json:"id"`
-	Source   string            `json:"source,omitempty"`
-	Prompt   string            `json:"prompt"`
-	History  []checker.Message `json:"history,omitempty"`
-	Expected map[string]bool   `json:"expected"`
+	ID       string            `json:"id" yaml:"id"`
+	Source   string            `json:"source,omitempty" yaml:"source,omitempty"`
+	Prompt   string            `json:"prompt" yaml:"prompt"`
+	History  []checker.Message `json:"history,omitempty" yaml:"history,omitempty"`
+	Expected map[string]bool   `json:"expected" yaml:"expected"`
 }
 
 type Row struct {
@@ -96,8 +98,11 @@ func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config
 		return err
 	}
 	var cases []Case
-	if err := json.Unmarshal(b, &cases); err != nil || len(cases) == 0 {
-		return errors.New("cases must be a non-empty JSON array")
+	if err := yaml.Unmarshal(b, &cases); err != nil {
+		return fmt.Errorf("failed to parse cases file: %w", err)
+	}
+	if len(cases) == 0 {
+		return errors.New("cases must be a non-empty YAML/JSON array")
 	}
 	keys := checker.OrderedKeys(rubric)
 	seenIDs := make(map[string]bool, len(cases))

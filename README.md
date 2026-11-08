@@ -44,7 +44,7 @@ just evaluate
 The exit code is `0` when the check completes (even if `pass` is `false`), `1` on network or input errors, and `2` on invalid CLI flags.
 Check the `pass` field in the JSON output to determine whether the prompt passed.
 
-`evaluate` runs all cases in `cases.json` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json`.
+`evaluate` runs all cases in `cases.yaml` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json`.
 Specify `--output <path>` to save to another file or `--threshold <float>` to test a different threshold:
 
 ```sh
@@ -137,10 +137,10 @@ A score equal to the threshold passes.
 
 ## Evaluation Scope and Limitations
 
-`cases.json` includes explicit requests, missing references, bare noun phrases, vague quality requests, conflicting constraints, harmless typos, option selection, requirement corrections, exploratory brainstorming, prompt injection attempts, and real follow-up prompts captured from Codex sessions.
+`cases.yaml` includes explicit requests, missing references, bare noun phrases, vague quality requests, conflicting constraints, harmless typos, option selection, requirement corrections, exploratory brainstorming, prompt injection attempts, and real follow-up prompts captured from Codex sessions.
 
-Expected values in `cases.json` are provisional hypotheses rather than independently calibrated ground truth.
-When changing the rubric or threshold, validate against held-out examples rather than treating `cases.json` match counts as independent accuracy.
+Expected values in `cases.yaml` are provisional hypotheses rather than independently calibrated ground truth.
+When changing the rubric or threshold, validate against held-out examples rather than treating `cases.yaml` match counts as independent accuracy.
 Reported latency includes HTTP round-trip time with the model warm in memory; cold loads and long transcripts are not guaranteed to match.
 
 Model specification: [Ollama d1:2b](https://ollama.com/library/d1:2b)
