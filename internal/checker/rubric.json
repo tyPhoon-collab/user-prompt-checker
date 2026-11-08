@@ -1,0 +1,29 @@
+{
+  "intent_clear": {
+    "label": "Intent clarity",
+    "question": "Does user_prompt express an action, question, or conversational reply rather than a bare noun phrase or an ungrounded continuation?",
+    "criteria": {
+      "true": "user_prompt asks any question (including casual or elliptical questions like 'was that requested?' or 'why is it in X?'), requests an action (including 'fix it', 'fix and verify', or 'make it nice'), selects an option, or proposes a topic to discuss.",
+      "false": "user_prompt is only a bare noun phrase with no verb or question (e.g., 'The login submit button.'), a bare greeting ('hi'), or an approval phrase ('proceed with that') when conversation is empty."
+    },
+    "clarification": "State what action you want taken or what question you are asking."
+  },
+  "context_sufficient": {
+    "label": "Context sufficiency",
+    "question": "Can the assistant respond or act on user_prompt using conversation without guessing missing targets, unstated requirements, or unchosen options?",
+    "criteria": {
+      "true": "The subject is named in user_prompt or recoverable from conversation (such as a failing test log, a file path the assistant just mentioned, or a prior proposal), and the desired action or question is concrete enough to proceed. Typos, open-ended brainstorming, and questions about the assistant's prior reply are acceptable.",
+      "false": "A pronoun or reference ('fix it', 'proceed with that') has no antecedent in conversation, the assistant offered multiple options and the user did not pick one, the user asks to create a PoC or project folder without any specification of what to build in user_prompt or conversation, or the request only asks to make something 'nice' without criteria."
+    },
+    "clarification": "Specify the target, choose an option, or clarify the expected outcome."
+  },
+  "consistent": {
+    "label": "Consistency",
+    "question": "Are the active requirements in user_prompt and conversation logically compatible? An explicit correction supersedes an older requirement.",
+    "criteria": {
+      "true": "No active requirements contradict each other. An explicit correction ('cancel red, use blue instead') is consistent. Missing details or questions are not contradictions.",
+            "false": "Two active requirements cannot both be satisfied simultaneously (e.g., requiring the same element to be solid red only and solid blue only at the same time), and neither supersedes the other."
+    },
+    "clarification": "Resolve the conflicting requirements or state which condition takes priority."
+  }
+}
