@@ -16,6 +16,7 @@ import (
 	"user-prompt-checker/internal/eval"
 	"user-prompt-checker/internal/hook/agy"
 	"user-prompt-checker/internal/hook/codex"
+	"user-prompt-checker/internal/installer"
 )
 
 type cli struct {
@@ -25,9 +26,11 @@ type cli struct {
 	Threshold float64  `help:"Minimum score threshold in [0, 1]." default:"0.6"`
 	Timeout   *float64 `help:"HTTP timeout in seconds (default: 120 for check/evaluate, 10 for hook)."`
 
-	Check    checkCmd    `cmd:"" help:"Check a single user prompt."`
-	Evaluate evaluateCmd `cmd:"" help:"Run all evaluation cases and save report."`
-	Hook     hookCmd     `cmd:"" help:"Run an agent lifecycle hook (codex or agy)."`
+	Check     checkCmd     `cmd:"" help:"Check a single user prompt."`
+	Evaluate  evaluateCmd  `cmd:"" help:"Run all evaluation cases and save report."`
+	Hook      hookCmd      `cmd:"" help:"Run an agent lifecycle hook (codex or agy)."`
+	Install   installCmd   `cmd:"" help:"Register user-prompt-checker into agent hooks.json."`
+	Uninstall uninstallCmd `cmd:"" help:"Remove user-prompt-checker from agent hooks.json."`
 }
 
 type checkCmd struct {
@@ -42,6 +45,17 @@ type evaluateCmd struct {
 
 type hookCmd struct {
 	Agent string `arg:"" enum:"codex,agy" help:"Target agent platform (codex or agy)."`
+}
+
+type installCmd struct {
+	Agent  string `arg:"" enum:"agy,codex" help:"Target agent platform (agy or codex)."`
+	Binary string `help:"Path to executable binary (default: auto-detected current binary)."`
+	Target string `help:"Target hooks.json path (default: agent standard location)."`
+}
+
+type uninstallCmd struct {
+	Agent  string `arg:"" enum:"agy,codex" help:"Target agent platform (agy or codex)."`
+	Target string `help:"Target hooks.json path (default: agent standard location)."`
 }
 
 func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode int) {
@@ -184,6 +198,48 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 			fmt.Fprintf(stderr, "Error: %v\n", err)
 			return 1
 		}
+		return 0
+
+	case "install <agent>":
+		binPath := parsed.Install.Binary
+		if binPath == "" {
+			var err error
+			binPath, err = os.Executable()
+			if err != nil {
+				binPath = "user-prompt-checker"
+			}
+		}
+		if err := installer.Install(parsed.Install.Agent, binPath, parsed.Install.Target); err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		target := parsed.Install.Target
+		if target == "" {
+			paths, _ := installer.DefaultConfigPaths()
+			if parsed.Install.Agent == "agy" {
+				target = paths.AGY
+			} else {
+				target = paths.Codex
+			}
+		}
+		fmt.Fprintf(stdout, "Successfully installed hook for %s to %s\n", parsed.Install.Agent, target)
+		return 0
+
+	case "uninstall <agent>":
+		if err := installer.Uninstall(parsed.Uninstall.Agent, parsed.Uninstall.Target); err != nil {
+			fmt.Fprintf(stderr, "Error: %v\n", err)
+			return 1
+		}
+		target := parsed.Uninstall.Target
+		if target == "" {
+			paths, _ := installer.DefaultConfigPaths()
+			if parsed.Uninstall.Agent == "agy" {
+				target = paths.AGY
+			} else {
+				target = paths.Codex
+			}
+		}
+		fmt.Fprintf(stdout, "Successfully uninstalled hook for %s from %s\n", parsed.Uninstall.Agent, target)
 		return 0
 
 	default:

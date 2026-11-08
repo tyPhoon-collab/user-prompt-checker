@@ -149,6 +149,17 @@ Model specification: [Ollama d1:2b](https://ollama.com/library/d1:2b)
 
 The `hook <agent>` subcommand adapts to the lifecycle hook protocol of the specified agent (`codex` or `agy`). The `<agent>` argument is required.
 
+You can automatically register or remove the hooks using `install` / `uninstall`:
+```sh
+# Automatic setup (creates .bak backup and safely merges into existing hooks.json):
+just install agy      # or: ./user-prompt-checker install agy
+just install codex    # or: ./user-prompt-checker install codex
+
+# To remove:
+just uninstall agy    # or: ./user-prompt-checker uninstall agy
+just uninstall codex  # or: ./user-prompt-checker uninstall codex
+```
+
 ### 1. Codex CLI Hook Integration (`hook codex`)
 
 The `hook codex` command reads a `UserPromptSubmit` JSON event from stdin and reads `transcript_path` to extract up to the last 6 messages (`user` messages with `user` provenance, `assistant` `final_answer` messages, and `request_user_input_async` tool questions from prior turns).

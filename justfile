@@ -31,3 +31,11 @@ check prompt history="": build ollama::status
 # Run prompt evaluation benchmark across cases.yaml
 evaluate cases="cases.yaml" output="results.json": build ollama::status
     ./user-prompt-checker evaluate --cases {{ quote(cases) }} --output {{ quote(output) }}
+
+# Register hook into an agent's configuration (agy or codex)
+install agent="agy": build
+    ./user-prompt-checker install {{ agent }}
+
+# Remove hook from an agent's configuration (agy or codex)
+uninstall agent="agy": build
+    ./user-prompt-checker uninstall {{ agent }}

@@ -39,4 +39,24 @@ func TestCLISubcommandAndFlagParsing(t *testing.T) {
 	if code == 0 {
 		t.Fatalf("expected non-zero exit code for unknown agent, got 0")
 	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = runCLI([]string{"install", "--help"}, strings.NewReader(""), &out, &errBuf)
+	if code != 0 {
+		t.Fatalf("expected exit code 0 for install --help, got %d", code)
+	}
+	if !strings.Contains(out.String(), "install <agent>") {
+		t.Fatalf("expected install <agent> in help output:\n%s", out.String())
+	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = runCLI([]string{"uninstall", "--help"}, strings.NewReader(""), &out, &errBuf)
+	if code != 0 {
+		t.Fatalf("expected exit code 0 for uninstall --help, got %d", code)
+	}
+	if !strings.Contains(out.String(), "uninstall <agent>") {
+		t.Fatalf("expected uninstall <agent> in help output:\n%s", out.String())
+	}
 }
