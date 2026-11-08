@@ -7,13 +7,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"user-prompt-checker/internal/checker"
+	"user-prompt-checker/internal/history"
 )
 
 func FormatBlockReason(scores map[string]float64, rubric checker.Rubric, threshold float64) string {
@@ -153,10 +151,6 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {
-	record := map[string]any{
-		"captured_at": time.Now().UTC().Format(time.RFC3339Nano),
-	}
-	var outputPath string
 	response := map[string]any{}
 
 	err := func() error {
@@ -164,23 +158,10 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		if err := json.NewDecoder(stdin).Decode(&event); err != nil {
 			return err
 		}
-		record["event"] = event
 		if event["hook_event_name"] != "UserPromptSubmit" {
 			return errors.New("hook only supports UserPromptSubmit")
 		}
-		codexHome := os.Getenv("CODEX_HOME")
-		if codexHome == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-			codexHome = filepath.Join(home, ".codex")
-		}
-		capturesDir := filepath.Join(codexHome, "captures")
-		if err := os.MkdirAll(capturesDir, 0o700); err != nil {
-			return err
-		}
-		outputPath = filepath.Join(capturesDir, uuid.NewString()+".json")
+
 		transcriptPath, _ := event["transcript_path"].(string)
 		if transcriptPath == "" {
 			return errors.New("missing transcript_path in hook event")
@@ -190,7 +171,6 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			return err
 		}
 		snapshot := string(snapshotBytes)
-		record["transcript_snapshot"] = snapshot
 		turnID, ok := event["turn_id"].(string)
 		if !ok || turnID == "" {
 			return errors.New("missing turn_id in hook event")
@@ -200,22 +180,32 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			return errors.New("missing prompt in hook event")
 		}
 		if IsQuestionReplyPrompt(prompt) {
-			record["skipped"] = "Structured tool question reply"
 			return nil
 		}
-		history, err := HistoryFromSnapshot(snapshot, turnID)
+		historyTurns, err := HistoryFromSnapshot(snapshot, turnID)
 		if err != nil {
 			return err
 		}
-		result, err := checker.Check(prompt, history, rubric, cfg, client)
+		result, err := checker.Check(prompt, historyTurns, rubric, cfg, client)
 		if err != nil {
 			if checker.IsNetworkError(err) {
-				record["skipped"] = "Ollama unavailable: " + err.Error()
 				return nil
 			}
 			return err
 		}
-		record["result"] = result
+
+		_ = history.Append(history.Record{
+			Timestamp:      time.Now().UTC(),
+			SessionID:      turnID,
+			Agent:          "codex",
+			Prompt:         prompt,
+			Pass:           result.Pass,
+			Scores:         result.Scores,
+			Failed:         result.Failed,
+			Clarifications: result.Clarifications,
+			ElapsedMS:      result.ElapsedMS,
+		}, "")
+
 		if !result.Pass {
 			response = map[string]any{
 				"decision": "block",
@@ -224,26 +214,14 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}
 		return nil
 	}()
+
 	if err != nil {
-		record["error"] = err.Error()
 		response = map[string]any{
 			"decision": "block",
 			"reason":   "Prompt check failed: " + err.Error(),
 		}
 	}
-	record["hook_response"] = response
-	if outputPath != "" {
-		data, err := json.MarshalIndent(record, "", "  ")
-		if err == nil {
-			err = os.WriteFile(outputPath, append(data, '\n'), 0o600)
-		}
-		if err != nil {
-			response = map[string]any{
-				"decision": "block",
-				"reason":   "Failed to write capture log: " + err.Error(),
-			}
-		}
-	}
+
 	out, _ := json.Marshal(response)
 	fmt.Fprintln(stdout, string(out))
 }

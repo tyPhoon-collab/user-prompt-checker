@@ -59,4 +59,14 @@ func TestCLISubcommandAndFlagParsing(t *testing.T) {
 	if !strings.Contains(out.String(), "uninstall <agent>") {
 		t.Fatalf("expected uninstall <agent> in help output:\n%s", out.String())
 	}
+
+	out.Reset()
+	errBuf.Reset()
+	code = runCLI([]string{"gain", "--help"}, strings.NewReader(""), &out, &errBuf)
+	if code != 0 {
+		t.Fatalf("expected exit code 0 for gain --help, got %d", code)
+	}
+	if !strings.Contains(out.String(), "gain") {
+		t.Fatalf("expected gain in help output:\n%s", out.String())
+	}
 }

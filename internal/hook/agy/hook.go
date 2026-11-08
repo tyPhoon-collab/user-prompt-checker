@@ -7,14 +7,12 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"user-prompt-checker/internal/checker"
+	"user-prompt-checker/internal/history"
 )
 
 var userRequestRegex = regexp.MustCompile(`(?s)<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>`)
@@ -97,10 +95,6 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {
-	record := map[string]any{
-		"captured_at": time.Now().UTC().Format(time.RFC3339Nano),
-	}
-	var outputPath string
 	response := map[string]any{}
 
 	err := func() error {
@@ -108,23 +102,8 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		if err := json.NewDecoder(stdin).Decode(&event); err != nil {
 			return err
 		}
-		record["event"] = event
 		if event.LastUserInput == "" {
 			return errors.New("missing lastUserInput in hook event")
-		}
-
-		capturesDir := ""
-		if event.ArtifactDirectoryPath != "" {
-			capturesDir = filepath.Join(filepath.Dir(event.ArtifactDirectoryPath), "captures")
-		} else {
-			home, err := os.UserHomeDir()
-			if err == nil {
-				capturesDir = filepath.Join(home, ".gemini", "antigravity-cli", "captures")
-			}
-		}
-		if capturesDir != "" {
-			_ = os.MkdirAll(capturesDir, 0o700)
-			outputPath = filepath.Join(capturesDir, uuid.NewString()+".json")
 		}
 
 		prompt := CleanUserPrompt(event.LastUserInput)
@@ -132,7 +111,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			return errors.New("empty user prompt after extraction")
 		}
 
-		var history []checker.Message
+		var historyTurns []checker.Message
 		if event.TranscriptPath != "" {
 			snapshotBytes, err := os.ReadFile(event.TranscriptPath)
 			if err != nil {
@@ -140,25 +119,34 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 					return fmt.Errorf("failed to read transcript: %w", err)
 				}
 			} else {
-				snapshot := string(snapshotBytes)
-				record["transcript_snapshot"] = snapshot
-				h, err := HistoryFromSnapshot(snapshot, prompt)
+				h, err := HistoryFromSnapshot(string(snapshotBytes), prompt)
 				if err != nil {
 					return err
 				}
-				history = h
+				historyTurns = h
 			}
 		}
 
-		result, err := checker.Check(prompt, history, rubric, cfg, client)
+		result, err := checker.Check(prompt, historyTurns, rubric, cfg, client)
 		if err != nil {
 			if checker.IsNetworkError(err) {
-				record["skipped"] = "Ollama unavailable: " + err.Error()
 				return nil
 			}
 			return err
 		}
-		record["result"] = result
+
+		_ = history.Append(history.Record{
+			Timestamp:      time.Now().UTC(),
+			SessionID:      event.ConversationID,
+			Agent:          "agy",
+			Prompt:         prompt,
+			Pass:           result.Pass,
+			Scores:         result.Scores,
+			Failed:         result.Failed,
+			Clarifications: result.Clarifications,
+			ElapsedMS:      result.ElapsedMS,
+		}, "")
+
 		if !result.Pass {
 			blockReason := FormatBlockReason(result.Scores, rubric, cfg.Threshold)
 			response = map[string]any{
@@ -176,7 +164,6 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 	}()
 
 	if err != nil {
-		record["error"] = err.Error()
 		response = map[string]any{
 			"terminationBehavior": "terminate",
 			"injectSteps": []map[string]any{
@@ -186,14 +173,6 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 					},
 				},
 			},
-		}
-	}
-
-	record["hook_response"] = response
-	if outputPath != "" {
-		data, err := json.MarshalIndent(record, "", "  ")
-		if err == nil {
-			_ = os.WriteFile(outputPath, append(data, '\n'), 0o600)
 		}
 	}
 

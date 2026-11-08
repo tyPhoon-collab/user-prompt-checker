@@ -14,6 +14,7 @@ import (
 
 	"user-prompt-checker/internal/checker"
 	"user-prompt-checker/internal/eval"
+	"user-prompt-checker/internal/history"
 	"user-prompt-checker/internal/hook/agy"
 	"user-prompt-checker/internal/hook/codex"
 	"user-prompt-checker/internal/installer"
@@ -31,6 +32,7 @@ type cli struct {
 	Hook      hookCmd      `cmd:"" help:"Run an agent lifecycle hook (codex or agy)."`
 	Install   installCmd   `cmd:"" help:"Register user-prompt-checker into agent hooks.json."`
 	Uninstall uninstallCmd `cmd:"" help:"Remove user-prompt-checker from agent hooks.json."`
+	Gain      gainCmd      `cmd:"" help:"Analyze prompt score improvements and quality history."`
 }
 
 type checkCmd struct {
@@ -45,6 +47,11 @@ type evaluateCmd struct {
 
 type hookCmd struct {
 	Agent string `arg:"" enum:"codex,agy" help:"Target agent platform (codex or agy)."`
+}
+
+type gainCmd struct {
+	Dir    string `help:"Path to history directory (defaults to XDG data dir)."`
+	Format string `help:"Output format (text or json)." default:"text"`
 }
 
 type installCmd struct {
@@ -240,6 +247,21 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 			}
 		}
 		fmt.Fprintf(stdout, "Successfully uninstalled hook for %s from %s\n", parsed.Uninstall.Agent, target)
+		return 0
+
+	case "gain":
+		records, err := history.LoadAll(parsed.Gain.Dir)
+		if err != nil {
+			fmt.Fprintf(stderr, "Error loading history: %v\n", err)
+			return 1
+		}
+		summary := history.Analyze(records)
+		if parsed.Gain.Format == "json" {
+			out, _ := json.MarshalIndent(summary, "", "  ")
+			fmt.Fprintln(stdout, string(out))
+			return 0
+		}
+		history.RenderGainReport(summary, stdout)
 		return 0
 
 	default:

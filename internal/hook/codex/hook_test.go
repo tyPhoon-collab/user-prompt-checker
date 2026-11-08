@@ -85,19 +85,6 @@ func TestOllamaConnectionFailureAndTimeoutSilentlySkip(t *testing.T) {
 	if diff := cmp.Diff(map[string]any{}, resp); diff != "" {
 		t.Fatalf("response mismatch (-want +got):\n%s", diff)
 	}
-	matches, _ := filepath.Glob(filepath.Join(dir, "captures", "*.json"))
-	if len(matches) != 1 {
-		t.Fatalf("expected 1 capture file, got %d", len(matches))
-	}
-	b, _ := os.ReadFile(matches[0])
-	var record map[string]any
-	_ = json.Unmarshal(b, &record)
-	if _, ok := record["skipped"]; !ok {
-		t.Fatalf("expected skipped field in capture record, got %v", record)
-	}
-	if _, ok := record["result"]; ok {
-		t.Fatalf("did not expect result in skipped capture record")
-	}
 }
 
 func TestFormatBlockReasonIsPlainTextWithClarificationsAndMetrics(t *testing.T) {

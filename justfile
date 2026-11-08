@@ -39,3 +39,7 @@ install agent="agy": build
 # Remove hook from an agent's configuration (agy or codex)
 uninstall agent="agy": build
     ./user-prompt-checker uninstall {{ agent }}
+
+# Analyze prompt score improvements and quality history
+gain format="text": build
+    ./user-prompt-checker gain --format {{ format }}
