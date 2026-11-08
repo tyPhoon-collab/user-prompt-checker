@@ -21,9 +21,10 @@ type Summary struct {
 	AvgScores    map[string]float64
 	GainPairs    []GainPair
 	TopPrompts   []Record
+	AllPrompts   []Record
 }
 
-func avgScore(scores map[string]float64) float64 {
+func AvgScore(scores map[string]float64) float64 {
 	if len(scores) == 0 {
 		return 0
 	}
@@ -38,6 +39,7 @@ func Analyze(records []Record) Summary {
 	sum := Summary{
 		TotalPrompts: len(records),
 		AvgScores:    make(map[string]float64),
+		AllPrompts:   records,
 	}
 	if len(records) == 0 {
 		return sum
@@ -77,8 +79,8 @@ func Analyze(records []Record) Summary {
 			prev := sessRecords[i]
 			curr := sessRecords[i+1]
 			if !prev.Pass && curr.Pass {
-				prevAvg := avgScore(prev.Scores)
-				currAvg := avgScore(curr.Scores)
+				prevAvg := AvgScore(prev.Scores)
+				currAvg := AvgScore(curr.Scores)
 				gain := currAvg - prevAvg
 				sum.GainPairs = append(sum.GainPairs, GainPair{
 					Before: prev,
@@ -91,7 +93,7 @@ func Analyze(records []Record) Summary {
 
 	// Top Prompts: 通過プロンプトのうち平均スコア上位5件
 	sort.Slice(passed, func(i, j int) bool {
-		return avgScore(passed[i].Scores) > avgScore(passed[j].Scores)
+		return AvgScore(passed[i].Scores) > AvgScore(passed[j].Scores)
 	})
 	limit := 5
 	if len(passed) < limit {
@@ -128,15 +130,15 @@ func RenderGainReport(sum Summary, w io.Writer) {
 				sign = ""
 			}
 			fmt.Fprintf(w, "  %d. [%s%.3f Gain] Session: %s\n", i+1, sign, gp.Gain, gp.Before.SessionID)
-			fmt.Fprintf(w, "     [-] Blocked (avg %.3f): %q\n", avgScore(gp.Before.Scores), truncate(gp.Before.Prompt, 60))
-			fmt.Fprintf(w, "     [+] Passed  (avg %.3f): %q\n", avgScore(gp.After.Scores), truncate(gp.After.Prompt, 60))
+			fmt.Fprintf(w, "     [-] Blocked (avg %.3f): %q\n", AvgScore(gp.Before.Scores), truncate(gp.Before.Prompt, 60))
+			fmt.Fprintf(w, "     [+] Passed  (avg %.3f): %q\n", AvgScore(gp.After.Scores), truncate(gp.After.Prompt, 60))
 		}
 	}
 
 	if len(sum.TopPrompts) > 0 {
 		fmt.Fprintln(w, "\nTop Performed Prompts:")
 		for _, tp := range sum.TopPrompts {
-			fmt.Fprintf(w, "  ★ %.3f | %q\n", avgScore(tp.Scores), truncate(tp.Prompt, 65))
+			fmt.Fprintf(w, "  ★ %.3f | %q\n", AvgScore(tp.Scores), truncate(tp.Prompt, 65))
 		}
 	}
 	fmt.Fprintln(w, strings.Repeat("─", 70))

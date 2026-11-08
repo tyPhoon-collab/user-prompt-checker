@@ -13,22 +13,26 @@ import (
 )
 
 type model struct {
-	summary   history.Summary
-	cursor    int
-	tab       int // 0: Gains, 1: Top Prompts
-	splitMode int // 0: auto, 1: force-vertical, 2: force-horizontal
-	width     int
-	height    int
+	summary    history.Summary
+	cursor     int
+	tab        int // 0: Gains, 1: Prompts
+	splitMode  int // 0: auto, 1: force-vertical, 2: force-horizontal
+	gainSort   int // 0: Gain ↓, 1: Gain ↑, 2: Recent ↓
+	promptSort int // 0: Score ↓, 1: Score ↑, 2: Recent ↓
+	width      int
+	height     int
 }
 
 func New(sum history.Summary) tea.Model {
 	return model{
-		summary:   sum,
-		cursor:    0,
-		tab:       0,
-		splitMode: 0,
-		width:     80,
-		height:    24,
+		summary:    sum,
+		cursor:     0,
+		tab:        0,
+		splitMode:  0,
+		gainSort:   0,
+		promptSort: 0,
+		width:      80,
+		height:     24,
 	}
 }
 
@@ -56,6 +60,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tab = (m.tab + 1) % 2
 			m.cursor = 0
 
+		case "s":
+			if m.tab == 0 {
+				m.gainSort = (m.gainSort + 1) % 3
+			} else {
+				m.promptSort = (m.promptSort + 1) % 3
+			}
+			m.cursor = 0
+
 		case "v":
 			m.splitMode = (m.splitMode + 1) % 3
 
@@ -74,9 +86,44 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) sortedGains() []history.GainPair {
+	res := make([]history.GainPair, len(m.summary.GainPairs))
+	copy(res, m.summary.GainPairs)
+	switch m.gainSort {
+	case 0: // Gain ↓
+		sort.Slice(res, func(i, j int) bool { return res[i].Gain > res[j].Gain })
+	case 1: // Gain ↑
+		sort.Slice(res, func(i, j int) bool { return res[i].Gain < res[j].Gain })
+	case 2: // Recent ↓
+		sort.Slice(res, func(i, j int) bool { return res[i].After.Timestamp.After(res[j].After.Timestamp) })
+	}
+	return res
+}
+
+func (m model) sortedPrompts() []history.Record {
+	src := m.summary.AllPrompts
+	if len(src) == 0 {
+		src = m.summary.TopPrompts
+	}
+	res := make([]history.Record, len(src))
+	copy(res, src)
+	switch m.promptSort {
+	case 0: // Score ↓
+		sort.Slice(res, func(i, j int) bool { return calcAvg(res[i].Scores) > calcAvg(res[j].Scores) })
+	case 1: // Score ↑
+		sort.Slice(res, func(i, j int) bool { return calcAvg(res[i].Scores) < calcAvg(res[j].Scores) })
+	case 2: // Recent ↓
+		sort.Slice(res, func(i, j int) bool { return res[i].Timestamp.After(res[j].Timestamp) })
+	}
+	return res
+}
+
 func (m model) itemCount() int {
 	if m.tab == 0 {
 		return len(m.summary.GainPairs)
+	}
+	if len(m.summary.AllPrompts) > 0 {
+		return len(m.summary.AllPrompts)
 	}
 	return len(m.summary.TopPrompts)
 }
@@ -98,13 +145,25 @@ func (m model) View() string {
 	))
 	header := lipgloss.JoinHorizontal(lipgloss.Center, headerTitle, " ", statsBar)
 
-	// 2. Tabs
-	t0 := inactiveTabStyle.Render("[1] Prompt Gains (" + fmt.Sprintf("%d", len(m.summary.GainPairs)) + ")")
-	t1 := inactiveTabStyle.Render("[2] Top Prompts (" + fmt.Sprintf("%d", len(m.summary.TopPrompts)) + ")")
+	// 2. Tabs with Sort Indicators
+	gainSortLabel := []string{"Gain ↓", "Gain ↑", "Recent ↓"}[m.gainSort]
+	promptSortLabel := []string{"Score ↓", "Score ↑", "Recent ↓"}[m.promptSort]
+
+	promptCount := len(m.summary.AllPrompts)
+	if promptCount == 0 {
+		promptCount = len(m.summary.TopPrompts)
+	}
+
+	tab0Text := fmt.Sprintf("[1] Prompt Gains (%d) [%s]", len(m.summary.GainPairs), gainSortLabel)
+	tab1Text := fmt.Sprintf("[2] Prompts (%d) [%s]", promptCount, promptSortLabel)
+
+	var t0, t1 string
 	if m.tab == 0 {
-		t0 = activeTabStyle.Render("[1] Prompt Gains (" + fmt.Sprintf("%d", len(m.summary.GainPairs)) + ")")
+		t0 = activeTabStyle.Render(tab0Text)
+		t1 = inactiveTabStyle.Render(tab1Text)
 	} else {
-		t1 = activeTabStyle.Render("[2] Top Prompts (" + fmt.Sprintf("%d", len(m.summary.TopPrompts)) + ")")
+		t0 = inactiveTabStyle.Render(tab0Text)
+		t1 = activeTabStyle.Render(tab1Text)
 	}
 	tabs := lipgloss.JoinHorizontal(lipgloss.Left, t0, "  ", t1)
 
@@ -162,7 +221,7 @@ func (m model) View() string {
 	} else if m.splitMode == 2 {
 		splitLabel = "horizontal"
 	}
-	footer := subtleStyle.Render(fmt.Sprintf(" ↑/k: up  •  ↓/j: down  •  tab: switch tab  •  v: split (%s)  •  q/esc: quit", splitLabel))
+	footer := subtleStyle.Render(fmt.Sprintf(" ↑/k: up  •  ↓/j: down  •  tab: switch tab  •  s: sort  •  v: split (%s)  •  q/esc: quit", splitLabel))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
@@ -175,10 +234,11 @@ func (m model) View() string {
 func (m model) renderLeftList(width, height int) string {
 	var lines []string
 	if m.tab == 0 {
-		if len(m.summary.GainPairs) == 0 {
+		gains := m.sortedGains()
+		if len(gains) == 0 {
 			return subtleStyle.Render("No gain improvement events detected yet.")
 		}
-		for i, gp := range m.summary.GainPairs {
+		for i, gp := range gains {
 			sign := "+"
 			if gp.Gain < 0 {
 				sign = ""
@@ -198,19 +258,27 @@ func (m model) renderLeftList(width, height int) string {
 			}
 		}
 	} else {
-		if len(m.summary.TopPrompts) == 0 {
-			return subtleStyle.Render("No passing prompts recorded.")
+		prompts := m.sortedPrompts()
+		if len(prompts) == 0 {
+			return subtleStyle.Render("No prompts recorded.")
 		}
-		for i, tp := range m.summary.TopPrompts {
-			avg := calcAvg(tp.Scores)
+		for i, p := range prompts {
+			avg := calcAvg(p.Scores)
 			badge := fmt.Sprintf("★ %.3f", avg)
-			pText := truncateStr(tp.Prompt, width-12)
+			if !p.Pass {
+				badge = fmt.Sprintf("✖ %.3f", avg)
+			}
+			pText := truncateStr(p.Prompt, width-12)
 			line := fmt.Sprintf("%s %s", badge, pText)
 
 			if i == m.cursor {
 				lines = append(lines, selectedItemStyle.Width(width-2).Render(line))
 			} else {
-				lines = append(lines, fmt.Sprintf("%s %s", yellowText.Render(badge), pText))
+				if p.Pass {
+					lines = append(lines, fmt.Sprintf("%s %s", yellowText.Render(badge), pText))
+				} else {
+					lines = append(lines, fmt.Sprintf("%s %s", redText.Render(badge), pText))
+				}
 			}
 		}
 	}
@@ -233,10 +301,11 @@ func (m model) renderLeftList(width, height int) string {
 
 func (m model) renderRightDetail(width, height int) string {
 	if m.tab == 0 {
-		if len(m.summary.GainPairs) == 0 || m.cursor >= len(m.summary.GainPairs) {
+		gains := m.sortedGains()
+		if len(gains) == 0 || m.cursor >= len(gains) {
 			return subtleStyle.Render("No detail available.")
 		}
-		gp := m.summary.GainPairs[m.cursor]
+		gp := gains[m.cursor]
 		var b strings.Builder
 
 		b.WriteString(blueText.Render(fmt.Sprintf("GAIN IMPROVEMENT: %+.3f", gp.Gain)) + "\n\n")
@@ -264,19 +333,34 @@ func (m model) renderRightDetail(width, height int) string {
 		return b.String()
 	}
 
-	if len(m.summary.TopPrompts) == 0 || m.cursor >= len(m.summary.TopPrompts) {
+	prompts := m.sortedPrompts()
+	if len(prompts) == 0 || m.cursor >= len(prompts) {
 		return subtleStyle.Render("No detail available.")
 	}
-	tp := m.summary.TopPrompts[m.cursor]
+	tp := prompts[m.cursor]
 	var b strings.Builder
-	b.WriteString(blueText.Render(fmt.Sprintf("TOP PROMPT (Avg: %.3f)", calcAvg(tp.Scores))) + "\n\n")
+
+	statusBadge := greenText.Render("[PASSED]")
+	if !tp.Pass {
+		statusBadge = redText.Render("[BLOCKED]")
+	}
+	b.WriteString(blueText.Render(fmt.Sprintf("PROMPT DETAIL (Avg: %.3f) ", calcAvg(tp.Scores))) + statusBadge + "\n\n")
 
 	promptBox := lipgloss.NewStyle().Width(width - 4).Render("Prompt:\n" + tp.Prompt)
 	b.WriteString(promptBox + "\n\n")
 
 	b.WriteString(fmt.Sprintf("Timestamp : %s\n", tp.Timestamp.Local().Format("2006-01-02 15:04:05")))
 	b.WriteString(fmt.Sprintf("Session   : %s\n", tp.SessionID))
+	b.WriteString(fmt.Sprintf("Agent     : %s\n", tp.Agent))
 	b.WriteString(fmt.Sprintf("Latency   : %.1fms\n\n", tp.ElapsedMS))
+
+	if len(tp.Clarifications) > 0 {
+		b.WriteString(subtleStyle.Render("Clarifications:") + "\n")
+		for _, c := range tp.Clarifications {
+			b.WriteString("  • " + c + "\n")
+		}
+		b.WriteString("\n")
+	}
 
 	b.WriteString(subtleStyle.Render("Scores:") + "\n")
 	renderScoresBlock(&b, tp.Scores)

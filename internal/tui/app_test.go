@@ -44,15 +44,22 @@ func TestTUIModelNavigation(t *testing.T) {
 	// Tab switch
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
 	view = m.View()
-	if !strings.Contains(view, "TOP PROMPT") {
-		t.Fatalf("expected top prompt view after tab switch:\n%s", view)
+	if !strings.Contains(view, "PROMPT DETAIL") {
+		t.Fatalf("expected prompt detail view after tab switch:\n%s", view)
+	}
+
+	// Sort toggle ('s')
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	view = m.View()
+	if !strings.Contains(view, "[Score ↑]") {
+		t.Fatalf("expected Score ↑ sort order after 's':\n%s", view)
 	}
 
 	// Narrow window resize (vertical layout test)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 75, Height: 25})
 	viewNarrow := m.View()
-	if !strings.Contains(viewNarrow, "TOP PROMPT") {
-		t.Fatalf("expected top prompt view in narrow mode:\n%s", viewNarrow)
+	if !strings.Contains(viewNarrow, "PROMPT DETAIL") {
+		t.Fatalf("expected prompt detail view in narrow mode:\n%s", viewNarrow)
 	}
 
 	// Quit
