@@ -204,6 +204,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			Failed:         result.Failed,
 			Clarifications: result.Clarifications,
 			ElapsedMS:      result.ElapsedMS,
+			TranscriptPath: transcriptPath,
 		}, "")
 
 		if !result.Pass {

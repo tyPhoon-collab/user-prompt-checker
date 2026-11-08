@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alecthomas/kong"
+	"github.com/mattn/go-isatty"
 	"gopkg.in/yaml.v3"
 
 	"user-prompt-checker/internal/checker"
@@ -18,6 +19,7 @@ import (
 	"user-prompt-checker/internal/hook/agy"
 	"user-prompt-checker/internal/hook/codex"
 	"user-prompt-checker/internal/installer"
+	"user-prompt-checker/internal/tui"
 )
 
 type cli struct {
@@ -51,7 +53,7 @@ type hookCmd struct {
 
 type gainCmd struct {
 	Dir    string `help:"Path to history directory (defaults to XDG data dir)."`
-	Format string `help:"Output format (text or json)." default:"text"`
+	Format string `help:"Output format: tui, text, or json (default: auto-detected tui on TTY, text on pipe)." default:""`
 }
 
 type installCmd struct {
@@ -256,7 +258,17 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 			return 1
 		}
 		summary := history.Analyze(records)
-		if parsed.Gain.Format == "json" {
+
+		format := parsed.Gain.Format
+		if format == "tui" || (format == "" && isTerminalWriter(stdout)) {
+			if err := tui.Run(summary); err != nil {
+				fmt.Fprintf(stderr, "Error running TUI: %v\n", err)
+				return 1
+			}
+			return 0
+		}
+
+		if format == "json" {
 			out, _ := json.MarshalIndent(summary, "", "  ")
 			fmt.Fprintln(stdout, string(out))
 			return 0
@@ -271,6 +283,13 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 }
 
 type kongExit struct{}
+
+func isTerminalWriter(w io.Writer) bool {
+	if f, ok := w.(*os.File); ok {
+		return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+	}
+	return false
+}
 
 func main() {
 	os.Exit(runCLI(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))

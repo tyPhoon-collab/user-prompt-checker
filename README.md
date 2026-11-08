@@ -39,9 +39,9 @@ Run `just --list` to view all available tasks.
 just evaluate
 # or: ./user-prompt-checker evaluate
 
-# Analyze prompt score improvements and quality history:
+# Analyze prompt score improvements and quality history (interactive TUI dashboard on terminal):
 just gain
-# or: ./user-prompt-checker gain [--format json]
+# or: ./user-prompt-checker gain [--format text|json]
 ```
 
 `check` returns the three scores, pass/block decision, failed criteria, clarification prompts, and elapsed time as JSON.

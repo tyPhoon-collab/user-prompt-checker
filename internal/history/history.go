@@ -21,6 +21,25 @@ type Record struct {
 	Failed         []string           `json:"failed"`
 	Clarifications []string           `json:"clarifications"`
 	ElapsedMS      float64            `json:"elapsed_ms"`
+	TranscriptPath string             `json:"transcript_path,omitempty"`
+}
+
+func (r Record) ResolveTranscriptPath() string {
+	if r.TranscriptPath != "" {
+		if _, err := os.Stat(r.TranscriptPath); err == nil {
+			return r.TranscriptPath
+		}
+	}
+	if r.Agent == "agy" && r.SessionID != "" {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			path := filepath.Join(home, ".gemini", "antigravity-cli", "brain", r.SessionID, ".system_generated", "logs", "transcript.jsonl")
+			if _, err := os.Stat(path); err == nil {
+				return path
+			}
+		}
+	}
+	return ""
 }
 
 func DataDir() (string, error) {

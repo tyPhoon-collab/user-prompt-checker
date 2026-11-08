@@ -40,6 +40,6 @@ install agent="agy": build
 uninstall agent="agy": build
     ./user-prompt-checker uninstall {{ agent }}
 
-# Analyze prompt score improvements and quality history
-gain format="text": build
-    ./user-prompt-checker gain --format {{ format }}
+# Analyze prompt score improvements and quality history (TUI on terminal, text on pipe)
+gain format="": build
+    ./user-prompt-checker gain {{ if format != "" { "--format " + format } else { "" } }}
