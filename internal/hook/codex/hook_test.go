@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -53,6 +54,46 @@ func makeTranscriptMessage(role, text, turn, provenance, phase string) string {
 	}
 	b, _ := json.Marshal(row)
 	return string(b)
+}
+
+func makeTranscriptMessageWithImages(role, text, turn string, imageCount int) string {
+	content := []map[string]any{}
+	if text != "" {
+		content = append(content, map[string]any{"type": "input_text", "text": text})
+	}
+	for i := 0; i < imageCount; i++ {
+		content = append(content, map[string]any{
+			"type": "input_image",
+			"image_url": map[string]any{"url": "data:image/png;base64,..."},
+		})
+	}
+	row := map[string]any{
+		"type": "response_item",
+		"payload": map[string]any{
+			"type":    "message",
+			"role":    role,
+			"content": content,
+			"internal_chat_message_metadata_passthrough": map[string]any{
+				"turn_id": turn,
+			},
+		},
+	}
+	b, _ := json.Marshal(row)
+	return string(b)
+}
+
+func TestCountAttachedImages(t *testing.T) {
+	lines := []string{
+		makeTranscriptMessageWithImages("user", "prev message", "turn0", 1),
+		makeTranscriptMessageWithImages("user", "current message", "current", 2),
+	}
+	snapshot := strings.Join(lines, "\n")
+	if got := CountAttachedImages(snapshot, "current"); got != 2 {
+		t.Fatalf("expected 2 images for current turn, got: %d", got)
+	}
+	if got := CountAttachedImages(snapshot, "nonexistent"); got != 0 {
+		t.Fatalf("expected 0 images for nonexistent turn, got: %d", got)
+	}
 }
 
 func TestOllamaConnectionFailureAndTimeoutSilentlySkip(t *testing.T) {
@@ -212,5 +253,58 @@ func TestInvalidEventBlocksInsteadOfSilentlyAllowing(t *testing.T) {
 	}
 	if resp["decision"] != "block" {
 		t.Fatalf("expected decision=block, got %v", resp)
+	}
+}
+
+func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
+	rubric := mustLoadRubric(t)
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+	transcript := filepath.Join(dir, "history.jsonl")
+	line := makeTranscriptMessageWithImages("user", "Fix it", "current", 1)
+	if err := os.WriteFile(transcript, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var interceptedPrompt string
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			var body struct {
+				State struct {
+					UserPrompt string `json:"user_prompt"`
+				} `json:"state"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			interceptedPrompt = body.State.UserPrompt
+
+			resp := map[string]any{
+				"answers": map[string]any{
+					"intent_clear":      map[string]any{"type": "noul", "noul": 0.95},
+					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":        map[string]any{"type": "noul", "noul": 0.95},
+				},
+			}
+			b, _ := json.Marshal(resp)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(b)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	event, _ := json.Marshal(map[string]any{
+		"hook_event_name": "UserPromptSubmit",
+		"turn_id":         "current",
+		"transcript_path": transcript,
+		"prompt":          "Fix it",
+	})
+	var out bytes.Buffer
+	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
+	Run(bytes.NewReader(event), &out, rubric, cfg, client)
+
+	wantPrompt := "Fix it\n\n[Attached 1 image(s)]"
+	if interceptedPrompt != wantPrompt {
+		t.Fatalf("expected evaluated prompt %q, got %q", wantPrompt, interceptedPrompt)
 	}
 }

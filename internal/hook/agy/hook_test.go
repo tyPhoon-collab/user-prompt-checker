@@ -44,6 +44,18 @@ func TestCleanUserPrompt(t *testing.T) {
 	}
 }
 
+func TestCountAttachedImages(t *testing.T) {
+	withImage := "<USER_REQUEST>\nFix this\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe user has uploaded 2 image(s):\n- /path/1.png\n- /path/2.png\n</ADDITIONAL_METADATA>"
+	if got := CountAttachedImages(withImage); got != 2 {
+		t.Fatalf("expected 2 images, got: %d", got)
+	}
+
+	withoutImage := "<USER_REQUEST>\nFix this\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: now\n</ADDITIONAL_METADATA>"
+	if got := CountAttachedImages(withoutImage); got != 0 {
+		t.Fatalf("expected 0 images, got: %d", got)
+	}
+}
+
 func TestHistoryFromSnapshot(t *testing.T) {
 	lines := []string{
 		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>First prompt</USER_REQUEST>"}`,
@@ -61,6 +73,52 @@ func TestHistoryFromSnapshot(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, history); diff != "" {
 		t.Fatalf("history mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
+	rubric := mustLoadRubric(t)
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+
+	var interceptedPrompt string
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			var body struct {
+				State struct {
+					UserPrompt string `json:"user_prompt"`
+				} `json:"state"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			interceptedPrompt = body.State.UserPrompt
+
+			resp := map[string]any{
+				"answers": map[string]any{
+					"intent_clear":      map[string]any{"type": "noul", "noul": 0.95},
+					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":        map[string]any{"type": "noul", "noul": 0.95},
+				},
+			}
+			b, _ := json.Marshal(resp)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(b)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	event, _ := json.Marshal(Event{
+		ConversationID: "conv-img",
+		LastUserInput:  "<USER_REQUEST>\nFix error\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe user has uploaded 1 image(s):\n- /path/err.png\n</ADDITIONAL_METADATA>",
+	})
+	var out bytes.Buffer
+	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
+	Run(bytes.NewReader(event), &out, rubric, cfg, client)
+
+	wantPrompt := "Fix error\n\n[Attached 1 image(s)]"
+	if interceptedPrompt != wantPrompt {
+		t.Fatalf("expected evaluated prompt %q, got %q", wantPrompt, interceptedPrompt)
 	}
 }
 

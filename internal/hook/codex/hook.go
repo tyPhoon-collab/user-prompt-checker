@@ -42,6 +42,43 @@ func IsQuestionReplyPrompt(prompt string) bool {
 		strings.HasSuffix(trimmed, "</send_user_message_question_reply>")
 }
 
+func CountAttachedImages(snapshot string, currentTurnID string) int {
+	count := 0
+	for _, line := range strings.Split(snapshot, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		var row struct {
+			Type    string `json:"type"`
+			Payload struct {
+				Role    string `json:"role"`
+				Content []struct {
+					Type string `json:"type"`
+				} `json:"content"`
+				Metadata struct {
+					TurnID string `json:"turn_id"`
+				} `json:"internal_chat_message_metadata_passthrough"`
+			} `json:"payload"`
+		}
+		if err := json.Unmarshal([]byte(trimmed), &row); err != nil {
+			continue
+		}
+		if row.Type != "response_item" || row.Payload.Role != "user" {
+			continue
+		}
+		if row.Payload.Metadata.TurnID != currentTurnID {
+			continue
+		}
+		for _, item := range row.Payload.Content {
+			if item.Type == "input_image" {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Message, error) {
 	history := []checker.Message{}
 	// shortcut: private JSONL schema for Codex CLI 0.166.0; revisit after CLI updates.
@@ -186,7 +223,11 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		if err != nil {
 			return err
 		}
-		result, err := checker.Check(prompt, historyTurns, rubric, cfg, client)
+		evalPrompt := prompt
+		if imageCount := CountAttachedImages(snapshot, turnID); imageCount > 0 {
+			evalPrompt = fmt.Sprintf("%s\n\n[Attached %d image(s)]", prompt, imageCount)
+		}
+		result, err := checker.Check(evalPrompt, historyTurns, rubric, cfg, client)
 		if err != nil {
 			if checker.IsNetworkError(err) {
 				return nil
@@ -198,7 +239,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			Timestamp:      time.Now().UTC(),
 			SessionID:      turnID,
 			Agent:          "codex",
-			Prompt:         prompt,
+			Prompt:         evalPrompt,
 			Pass:           result.Pass,
 			Scores:         result.Scores,
 			Failed:         result.Failed,

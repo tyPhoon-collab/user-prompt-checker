@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 )
 
 var userRequestRegex = regexp.MustCompile(`(?s)<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>`)
+var uploadedImagesRegex = regexp.MustCompile(`The user has uploaded (\d+)\s+image\(s\):`)
 
 type Event struct {
 	ConversationID        string   `json:"conversationId"`
@@ -34,6 +36,16 @@ func CleanUserPrompt(raw string) string {
 		return strings.TrimSpace(matches[1])
 	}
 	return strings.TrimSpace(raw)
+}
+
+func CountAttachedImages(raw string) int {
+	matches := uploadedImagesRegex.FindStringSubmatch(raw)
+	if len(matches) > 1 {
+		if n, err := strconv.Atoi(matches[1]); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 0
 }
 
 func FormatBlockReason(scores map[string]float64, rubric checker.Rubric, threshold float64) string {
@@ -127,7 +139,12 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			}
 		}
 
-		result, err := checker.Check(prompt, historyTurns, rubric, cfg, client)
+		evalPrompt := prompt
+		if imageCount := CountAttachedImages(event.LastUserInput); imageCount > 0 {
+			evalPrompt = fmt.Sprintf("%s\n\n[Attached %d image(s)]", prompt, imageCount)
+		}
+
+		result, err := checker.Check(evalPrompt, historyTurns, rubric, cfg, client)
 		if err != nil {
 			if checker.IsNetworkError(err) {
 				return nil
@@ -139,7 +156,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			Timestamp:      time.Now().UTC(),
 			SessionID:      event.ConversationID,
 			Agent:          "agy",
-			Prompt:         prompt,
+			Prompt:         evalPrompt,
 			Pass:           result.Pass,
 			Scores:         result.Scores,
 			Failed:         result.Failed,

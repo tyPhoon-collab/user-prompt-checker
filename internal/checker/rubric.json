@@ -10,10 +10,10 @@
   },
   "context_sufficient": {
     "label": "Context sufficiency",
-    "question": "Can the assistant respond or act on user_prompt using conversation without guessing missing targets, unstated requirements, or unchosen options?",
+    "question": "Can the assistant respond or act on user_prompt using conversation or attached images without guessing missing targets, unstated requirements, or unchosen options?",
     "criteria": {
-      "true": "The subject is named in user_prompt or recoverable from conversation (such as a failing test log, a file path the assistant just mentioned, or a prior proposal), and the desired action or question is concrete enough to proceed. Typos, open-ended brainstorming, and questions about the assistant's prior reply are acceptable.",
-      "false": "A pronoun or reference ('fix it', 'proceed with that') has no antecedent in conversation, the assistant offered multiple options and the user did not pick one, the user asks to create a PoC or project folder without any specification of what to build in user_prompt or conversation, or the request only asks to make something 'nice' without criteria."
+      "true": "The subject is named in user_prompt, recoverable from conversation, or provided by attached images (such as 'fix this error' or UI feedback when an image is attached), and the desired action or question is concrete enough to proceed. Typos, open-ended brainstorming, and questions about the assistant's prior reply are acceptable.",
+      "false": "A pronoun or reference ('fix it', 'proceed with that') has no antecedent in conversation or attached images, the assistant offered multiple options and the user did not pick one, the user asks to create a PoC or project folder without any specification of what to build in user_prompt or conversation, or the request only asks to make something 'nice' without criteria."
     },
     "clarification": "Specify the target, choose an option, or clarify the expected outcome."
   },

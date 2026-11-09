@@ -22,6 +22,36 @@
     context_sufficient: false
     consistent: true
 
+- id: image_attached_fix_error
+  prompt: |
+    このエラーを直して
+
+    [Attached 1 image(s)]
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: image_attached_ui_feedback
+  prompt: |
+    このスクリーンショットのデザイン崩れを直して
+
+    [Attached 1 image(s)]
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: image_attached_missing_action
+  prompt: |
+    スクリーンショット
+
+    [Attached 1 image(s)]
+  expected:
+    intent_clear: false
+    context_sufficient: true
+    consistent: true
+
 - id: missing_goal
   prompt: ログイン画面の送信ボタン。
   expected:
@@ -97,6 +127,16 @@
   expected:
     intent_clear: true
     context_sufficient: false
+    consistent: true
+
+- id: english_image_attached_fix
+  prompt: |
+    Fix this error
+
+    [Attached 1 image(s)]
+  expected:
+    intent_clear: true
+    context_sufficient: true
     consistent: true
 
 - id: english_missing_goal
