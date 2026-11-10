@@ -3,7 +3,7 @@
     "label": "Intent clarity",
     "question": "Does user_prompt express an action, question, or conversational reply rather than a bare noun phrase or an ungrounded continuation?",
     "criteria": {
-      "true": "user_prompt asks any question (including casual or elliptical questions like 'was that requested?' or 'why is it in X?'), requests an action (including 'fix it', 'fix and verify', or 'make it nice'), selects an option, or proposes a topic to discuss.",
+      "true": "user_prompt asks any question (including casual or elliptical questions like 'was that requested?' or 'why is it in X?'), requests an action (including 'fix it', 'commit', 'finish', or 'make it nice'), authorizes next steps or commits following prior discussion, selects an option, or proposes a topic to discuss.",
       "false": "user_prompt is only a bare noun phrase with no verb or question (e.g., 'The login submit button.'), a bare greeting ('hi'), or an approval phrase ('proceed with that') when conversation is empty."
     },
     "clarification": "State what action you want taken or what question you are asking."

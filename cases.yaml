@@ -22,6 +22,13 @@
     context_sufficient: false
     consistent: true
 
+- id: bare_commit_without_context
+  prompt: コミット
+  expected:
+    intent_clear: true
+    context_sufficient: false
+    consistent: true
+
 - id: image_attached_fix_error
   prompt: |
     このエラーを直して
@@ -310,6 +317,26 @@
     - role: assistant
       content: すべてのテストが通過し、リグレッションがないことを確認しました。
   prompt: LGTM
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: conversational_commit_request
+  history:
+    - role: assistant
+      content: 修正が完了し、テストもすべてパスしました。この内容でコミットしてよろしいでしょうか？
+  prompt: 一旦良いかな。コミットしてください
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: conversational_commit_bare
+  history:
+    - role: assistant
+      content: 修正内容をまとめました。コミットしますか？
+  prompt: コミット
   expected:
     intent_clear: true
     context_sufficient: true
