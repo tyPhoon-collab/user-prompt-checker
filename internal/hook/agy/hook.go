@@ -73,6 +73,7 @@ func FormatBlockReason(scores map[string]float64, rubric checker.Rubric, thresho
 func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Message, error) {
 	history := []checker.Message{}
 	cleanedCurrent := CleanUserPrompt(currentPrompt)
+	unansweredUser := false
 
 	for _, line := range strings.Split(snapshot, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -87,16 +88,25 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 		if err := json.Unmarshal([]byte(trimmed), &row); err != nil {
 			return nil, fmt.Errorf("failed to parse transcript line: %w", err)
 		}
-		if row.Type == "USER_INPUT" {
+		switch row.Type {
+		case "USER_INPUT":
+			unansweredUser = false
 			prompt := CleanUserPrompt(row.Content)
 			if prompt == "" || prompt == cleanedCurrent {
 				continue
 			}
 			history = append(history, checker.Message{Role: "user", Content: prompt})
-		} else if row.Type == "PLANNER_RESPONSE" {
+			unansweredUser = true
+		case "PLANNER_RESPONSE":
+			unansweredUser = false
 			content := strings.TrimSpace(row.Content)
 			if content != "" {
 				history = append(history, checker.Message{Role: "assistant", Content: content})
+			}
+		case "ERROR_MESSAGE":
+			if unansweredUser {
+				history = history[:len(history)-1]
+				unansweredUser = false
 			}
 		}
 	}

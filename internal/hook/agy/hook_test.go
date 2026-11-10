@@ -62,6 +62,8 @@ func TestHistoryFromSnapshot(t *testing.T) {
 		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>First prompt</USER_REQUEST>"}`,
 		`{"type":"PLANNER_RESPONSE","source":"MODEL","content":"First answer"}`,
 		`{"type":"GENERIC","source":"MODEL","content":"tool log"}`,
+		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>Blocked prompt</USER_REQUEST>"}`,
+		`{"type":"ERROR_MESSAGE","source":"SYSTEM_SDK","error":"blocked by hook"}`,
 		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"Current prompt"}`,
 	}
 	history, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "Current prompt")
