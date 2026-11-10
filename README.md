@@ -96,7 +96,7 @@ flowchart LR
     Rubric --> Engine
     Engine --> Model
     Model --> Engine
-    Engine --> Capture["$CODEX_HOME/captures/*.json"]
+    Engine --> History["Prompt Records (monthly history JSONL)"]
     Engine --> HookOutput["Hook Response (Allow or Block)"]
 ```
 
@@ -104,27 +104,22 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Start["Receive UserPromptSubmit Event"] --> IsReply{"Structured question reply?"}
+    Start["Receive UserPromptSubmit Event"] --> ReadTranscript["Read transcript_path (.jsonl)"]
+    ReadTranscript -- "Read error (except missing file)" --> BlockError["Block: return error reason"]
+    ReadTranscript -- "Read or missing file" --> IsReply{"Structured question reply?"}
     IsReply -- "Yes" --> AllowSkip["Allow: return empty JSON {}\n(Skip model check)"]
-    IsReply -- "No" --> ReadTranscript["Read transcript_path (.jsonl)"]
-
-    ReadTranscript --> ParseHistory{"Parse history\n(User, Assistant, Tool questions)"}
-    ParseHistory -- "Malformed / Compacted" --> BlockError["Block: return error reason"]
+    IsReply -- "No" --> ParseHistory{"Parse history\n(User, Assistant, Tool questions)"}
+    ParseHistory -- "Malformed" --> BlockError
     ParseHistory -- "OK (up to last 6)" --> CallOllama["Call Ollama d1:2b (/v1/systemone)\n10s timeout"]
 
     CallOllama --> NetResult{"HTTP call status"}
-    NetResult -- "Connection Refused / Timeout" --> AllowNet["Allow: return empty JSON {}\n(Log skipped reason)"]
+    NetResult -- "Connection Refused / Timeout" --> AllowNet["Allow: return empty JSON {}\n(No record written)"]
     NetResult -- "Other Error" --> BlockError
-    NetResult -- "200 OK" --> EvaluateScores{"All 3 scores >= threshold (0.6)?"}
+    NetResult -- "Evaluation complete" --> SaveHistory["Append Prompt Record\n(monthly history JSONL)"]
+    SaveHistory --> EvaluateScores{"All 3 scores >= threshold (0.6)?"}
 
     EvaluateScores -- "Yes (All pass)" --> AllowPass["Allow: return empty JSON {}"]
     EvaluateScores -- "No (Any below 0.6)" --> BlockDecision["Block: return decision block\nPlain-text clarifications & metrics"]
-
-    AllowSkip --> SaveCapture["Save capture log\n($CODEX_HOME/captures/<uuid>.json)"]
-    AllowNet --> SaveCapture
-    AllowPass --> SaveCapture
-    BlockDecision --> SaveCapture
-    BlockError --> SaveCapture
 ```
 
 ## Evaluation Criteria
@@ -156,6 +151,10 @@ Model specification: [Ollama d1:2b](https://ollama.com/library/d1:2b)
 
 The `hook <agent>` subcommand adapts to the lifecycle hook protocol of the specified agent (`codex` or `agy`). The `<agent>` argument is required.
 
+When evaluation completes, either hook appends a Prompt Record to `$XDG_DATA_HOME/user-prompt-checker/history-YYYY-MM.jsonl`, defaulting to `~/.local/share/user-prompt-checker/history-YYYY-MM.jsonl` when `XDG_DATA_HOME` is unset or empty. New directories are created with `0700` permissions and new files with `0600` permissions.
+Records retain the transcript path and byte boundary for context lookup, without copying the transcript itself.
+Skipped checks and processing errors write no record or skip reason. History write failures do not change the hook response.
+
 You can automatically register or remove the hooks using `install` / `uninstall`:
 ```sh
 # Automatic setup (creates .bak backup and safely merges into existing hooks.json):
@@ -175,10 +174,8 @@ Structured tool replies (`<send_user_message_question_reply>...</send_user_messa
 
 - **When all scores >= 0.6**: outputs `{}` with no notification.
 - **When any score < 0.6**: outputs `{"decision": "block", "reason": "..."}` containing plain-text clarification bullets for the failed criteria followed by all three scores and the threshold (no ANSI escape sequences, as Codex CLI `0.166.0` renders raw escape codes).
-- **When Ollama is unreachable or times out** (default hook timeout: 10s): skips the check, logs the skip reason, and outputs `{}` so normal work is not blocked.
+- **When Ollama is unreachable or times out** (default hook timeout: 10s): skips the check and outputs `{}` so normal work is not blocked.
 - **On transcript format or non-network errors**: returns `{"decision": "block"}` with the error reason.
-
-Each hook invocation writes a capture record (with `0600` permissions in `$CODEX_HOME/captures/<uuid>.json`, defaulting to `~/.codex/captures/`) containing the event, transcript snapshot, extracted history, scores, and hook response.
 
 #### Installing in `~/.codex/hooks.json`
 
