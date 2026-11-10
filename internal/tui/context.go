@@ -24,7 +24,8 @@ func LoadContext(rec history.Record) ([]checker.Message, error) {
 		return agy.HistoryFromSnapshot(snapshot, rec.Prompt)
 	}
 	if rec.Agent == "codex" {
-		return codex.HistoryFromSnapshot(snapshot, rec.SessionID)
+		msgs, _, err := codex.HistoryFromSnapshot(snapshot, rec.SessionID)
+		return msgs, err
 	}
 	return nil, nil
 }

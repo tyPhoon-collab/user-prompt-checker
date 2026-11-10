@@ -79,8 +79,11 @@ func CountAttachedImages(snapshot string, currentTurnID string) int {
 	return count
 }
 
-func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Message, error) {
+func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Message, []string, error) {
 	history := []checker.Message{}
+	var warnings []string
+	warnedProvenance := false
+
 	// shortcut: private JSONL schema for Codex CLI 0.166.0; revisit after CLI updates.
 	for _, line := range strings.Split(snapshot, "\n") {
 		if strings.TrimSpace(line) == "" {
@@ -105,10 +108,10 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 			} `json:"payload"`
 		}
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if row.Type == "compacted" {
-			return nil, errors.New("compacted conversation transcripts are not supported")
+			return nil, nil, errors.New("compacted conversation transcripts are not supported")
 		}
 		if row.Type != "response_item" {
 			continue
@@ -155,16 +158,24 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 					Type string `json:"type"`
 				} `json:"provenance"`
 			}
-			if len(p.Metadata.ContentItemMetadata) == 0 {
-				return nil, errors.New("cannot identify user provenance in transcript")
+			hasProvenance := false
+			if len(p.Metadata.ContentItemMetadata) > 0 {
+				if err := json.Unmarshal(p.Metadata.ContentItemMetadata, &itemMeta); err == nil && len(itemMeta) == len(p.Content) {
+					hasProvenance = true
+				}
 			}
-			if err := json.Unmarshal(p.Metadata.ContentItemMetadata, &itemMeta); err != nil || len(itemMeta) != len(p.Content) {
-				return nil, errors.New("cannot identify user provenance in transcript")
+			if !hasProvenance && !warnedProvenance && len(p.Content) > 0 {
+				warnings = append(warnings, "user provenance metadata missing in transcript; fallen back to role-based extraction")
+				warnedProvenance = true
 			}
 			for i, item := range p.Content {
-				if itemMeta[i].Provenance.Type == "user" && (item.Type == "input_text" || item.Type == "output_text") {
-					texts = append(texts, item.Text)
+				if item.Type != "input_text" && item.Type != "output_text" {
+					continue
 				}
+				if hasProvenance && itemMeta[i].Provenance.Type != "user" {
+					continue
+				}
+				texts = append(texts, item.Text)
 			}
 		} else {
 			if p.Phase != "final_answer" {
@@ -184,7 +195,7 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 	if len(history) > 6 {
 		history = history[len(history)-6:]
 	}
-	return history, nil
+	return history, warnings, nil
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {
@@ -199,19 +210,18 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			return errors.New("hook only supports UserPromptSubmit")
 		}
 
+		var snapshot string
 		transcriptPath, _ := event["transcript_path"].(string)
-		if transcriptPath == "" {
-			return errors.New("missing transcript_path in hook event")
+		if transcriptPath != "" {
+			snapshotBytes, err := os.ReadFile(transcriptPath)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			if err == nil {
+				snapshot = string(snapshotBytes)
+			}
 		}
-		snapshotBytes, err := os.ReadFile(transcriptPath)
-		if err != nil {
-			return err
-		}
-		snapshot := string(snapshotBytes)
-		turnID, ok := event["turn_id"].(string)
-		if !ok || turnID == "" {
-			return errors.New("missing turn_id in hook event")
-		}
+		turnID, _ := event["turn_id"].(string)
 		prompt, ok := event["prompt"].(string)
 		if !ok {
 			return errors.New("missing prompt in hook event")
@@ -219,7 +229,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		if IsQuestionReplyPrompt(prompt) {
 			return nil
 		}
-		historyTurns, err := HistoryFromSnapshot(snapshot, turnID)
+		historyTurns, warnings, err := HistoryFromSnapshot(snapshot, turnID)
 		if err != nil {
 			return err
 		}
@@ -252,6 +262,13 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			response = map[string]any{
 				"decision": "block",
 				"reason":   FormatBlockReason(result.Scores, rubric, cfg.Threshold),
+			}
+		} else if len(warnings) > 0 {
+			response = map[string]any{
+				"hookSpecificOutput": map[string]any{
+					"hookEventName":     "UserPromptSubmit",
+					"additionalContext": "[user-prompt-checker] Warning: " + strings.Join(warnings, "; "),
+				},
 			}
 		}
 		return nil

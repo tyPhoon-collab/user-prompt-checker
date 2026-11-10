@@ -168,7 +168,7 @@ func TestHarnessAndCurrentTurnExcludedAndToolQuestionsIncluded(t *testing.T) {
 		makeTranscriptMessage("assistant", "Checking...", "turn1", "user", "commentary"),
 		makeTranscriptMessage("user", "Fix and verify", "current", "user", ""),
 	}, "\n")
-	history, err := HistoryFromSnapshot(snapshot, "current")
+	history, _, err := HistoryFromSnapshot(snapshot, "current")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestOnlyLastSixMessagesAreSent(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		lines = append(lines, makeTranscriptMessage("user", string(rune('0'+i)), string(rune('a'+i)), "user", ""))
 	}
-	history, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "current")
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "current")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,13 +233,24 @@ func TestOnlyLastSixMessagesAreSent(t *testing.T) {
 }
 
 func TestUnsupportedHistoryIsAnError(t *testing.T) {
-	for _, snap := range []string{
-		`{"type":"compacted"}`,
-		`{"type":"response_item","payload":{"type":"message","role":"user","content":[]}}`,
-	} {
-		if _, err := HistoryFromSnapshot(snap, "current"); err == nil {
-			t.Fatalf("expected error for unsupported snapshot: %s", snap)
-		}
+	snap := `{"type":"compacted"}`
+	if _, _, err := HistoryFromSnapshot(snap, "current"); err == nil {
+		t.Fatalf("expected error for unsupported snapshot: %s", snap)
+	}
+}
+
+func TestUserMessageWithoutContentItemMetadataIsExtracted(t *testing.T) {
+	// content_item_metadata が存在しない一般的なユーザーメッセージ行
+	line := `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Hello without metadata"}]}}`
+	history, warnings, err := HistoryFromSnapshot(line, "other_turn")
+	if err != nil {
+		t.Fatalf("unexpected error when metadata is missing: %v", err)
+	}
+	if len(history) != 1 || history[0].Content != "Hello without metadata" {
+		t.Fatalf("unexpected history extracted: %+v", history)
+	}
+	if len(warnings) == 0 || !strings.Contains(warnings[0], "user provenance metadata missing") {
+		t.Fatalf("expected warning for missing provenance metadata, got %v", warnings)
 	}
 }
 
@@ -306,5 +317,102 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 	wantPrompt := "Fix it\n\n[Attached 1 image(s)]"
 	if interceptedPrompt != wantPrompt {
 		t.Fatalf("expected evaluated prompt %q, got %q", wantPrompt, interceptedPrompt)
+	}
+}
+
+func TestMissingProvenanceInjectsWarningContextInRun(t *testing.T) {
+	rubric := mustLoadRubric(t)
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+	transcript := filepath.Join(dir, "history.jsonl")
+	// content_item_metadata なしの行
+	line := `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"prev prompt"}]}}`
+	if err := os.WriteFile(transcript, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			resp := map[string]any{
+				"answers": map[string]any{
+					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
+					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+				},
+			}
+			b, _ := json.Marshal(resp)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(b)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	event, _ := json.Marshal(map[string]any{
+		"hook_event_name": "UserPromptSubmit",
+		"turn_id":         "current",
+		"transcript_path": transcript,
+		"prompt":          "Fix it",
+	})
+	var out bytes.Buffer
+	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
+	Run(bytes.NewReader(event), &out, rubric, cfg, client)
+
+	var resp map[string]any
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	hso, ok := resp["hookSpecificOutput"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected hookSpecificOutput in response, got %v", resp)
+	}
+	ctx, _ := hso["additionalContext"].(string)
+	if !strings.Contains(ctx, "user provenance metadata missing") {
+		t.Fatalf("expected warning in additionalContext, got %q", ctx)
+	}
+}
+
+func TestEmptyTranscriptPathAllowsExecution(t *testing.T) {
+	rubric := mustLoadRubric(t)
+	dir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dir)
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			resp := map[string]any{
+				"answers": map[string]any{
+					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
+					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+				},
+			}
+			b, _ := json.Marshal(resp)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       io.NopCloser(bytes.NewReader(b)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+
+	// transcript_path が空文字（/side など）
+	event, _ := json.Marshal(map[string]any{
+		"hook_event_name": "UserPromptSubmit",
+		"turn_id":         "current",
+		"transcript_path": "",
+		"prompt":          "What does this function do?",
+	})
+	var out bytes.Buffer
+	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
+	Run(bytes.NewReader(event), &out, rubric, cfg, client)
+
+	var resp map[string]any
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	// エラーで block されず、正常に allow（空レスポンス）であること
+	if resp["decision"] == "block" {
+		t.Fatalf("expected non-block response when transcript_path is empty, got %v", resp)
 	}
 }
