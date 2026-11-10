@@ -8,19 +8,21 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"user-prompt-checker/internal/history"
 )
 
 type model struct {
-	summary    history.Summary
-	cursor     int
-	tab        int // 0: Gains, 1: Prompts
-	splitMode  int // 0: auto, 1: force-vertical, 2: force-horizontal
-	gainSort   int // 0: Gain ↓, 1: Gain ↑, 2: Recent ↓
-	promptSort int // 0: Score ↓, 1: Score ↑, 2: Recent ↓
-	width      int
-	height     int
+	summary      history.Summary
+	cursor       int
+	detailOffset int
+	tab          int // 0: Gains, 1: Prompts
+	splitMode    int // 0: auto, 1: force-vertical, 2: force-horizontal
+	gainSort     int // 0: Gain ↓, 1: Gain ↑, 2: Recent ↓
+	promptSort   int // 0: Score ↓, 1: Score ↑, 2: Recent ↓
+	width        int
+	height       int
 }
 
 func New(sum history.Summary) tea.Model {
@@ -45,9 +47,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.detailOffset = 0
 		return m, nil
 
 	case tea.KeyMsg:
+		previousCursor, previousTab := m.cursor, m.tab
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
 			return m, tea.Quit
@@ -61,6 +65,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 
 		case "s":
+			m.detailOffset = 0
 			if m.tab == 0 {
 				m.gainSort = (m.gainSort + 1) % 3
 			} else {
@@ -70,6 +75,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "v":
 			m.splitMode = (m.splitMode + 1) % 3
+			m.detailOffset = 0
+
+		case "J":
+			m.detailOffset = min(m.detailOffset+1, len(m.detailLines(m.detailWidth()))-1)
+
+		case "K":
+			m.detailOffset = max(0, m.detailOffset-1)
 
 		case "up", "k":
 			if m.cursor > 0 {
@@ -81,6 +93,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < maxItems-1 {
 				m.cursor++
 			}
+		}
+		if m.cursor != previousCursor || m.tab != previousTab {
+			m.detailOffset = 0
 		}
 	}
 	return m, nil
@@ -144,6 +159,10 @@ func (m model) View() string {
 		greenText.Render(passRateStr),
 	))
 	header := lipgloss.JoinHorizontal(lipgloss.Center, headerTitle, " ", statsBar)
+	if lipgloss.Width(header) > m.width {
+		header = lipgloss.JoinVertical(lipgloss.Left, headerTitle, statsBar)
+	}
+	header = lipgloss.NewStyle().Width(m.width).Render(header)
 
 	// 2. Tabs with Sort Indicators
 	gainSortLabel := []string{"Gain ↓", "Gain ↑", "Recent ↓"}[m.gainSort]
@@ -166,62 +185,53 @@ func (m model) View() string {
 		t1 = activeTabStyle.Render(tab1Text)
 	}
 	tabs := lipgloss.JoinHorizontal(lipgloss.Left, t0, "  ", t1)
+	tabs = lipgloss.NewStyle().Width(m.width).Render(tabs)
 
-	// 3. Responsive Layout (Vertical if narrow, Horizontal if wide)
-	isNarrow := m.width < 110
-	if m.splitMode == 1 {
-		isNarrow = true
-	} else if m.splitMode == 2 {
-		isNarrow = false
-	}
-	var panes string
-
-	if isNarrow {
-		topHeight := (m.height - 7) / 2
-		if topHeight < 5 {
-			topHeight = 5
-		}
-		bottomHeight := m.height - 7 - topHeight
-		if bottomHeight < 6 {
-			bottomHeight = 6
-		}
-		fullWidth := m.width - 2
-		if fullWidth < 20 {
-			fullWidth = 20
-		}
-
-		topList := m.renderLeftList(fullWidth, topHeight)
-		bottomDetail := m.renderRightDetail(fullWidth, bottomHeight)
-
-		panes = lipgloss.JoinVertical(lipgloss.Left,
-			paneBorder.Width(fullWidth).Height(topHeight).Render(topList),
-			paneBorder.Width(fullWidth).Height(bottomHeight).Render(bottomDetail),
-		)
-	} else {
-		contentHeight := m.height - 7
-		if contentHeight < 8 {
-			contentHeight = 8
-		}
-		leftWidth := (m.width - 4) / 2
-		rightWidth := m.width - leftWidth - 4
-
-		leftList := m.renderLeftList(leftWidth, contentHeight)
-		rightDetail := m.renderRightDetail(rightWidth, contentHeight)
-
-		panes = lipgloss.JoinHorizontal(lipgloss.Top,
-			paneBorder.Width(leftWidth).Height(contentHeight).Render(leftList),
-			paneBorder.Width(rightWidth).Height(contentHeight).Render(rightDetail),
-		)
-	}
-
-	// 4. Footer
 	splitLabel := "auto"
 	if m.splitMode == 1 {
 		splitLabel = "vertical"
 	} else if m.splitMode == 2 {
 		splitLabel = "horizontal"
 	}
-	footer := subtleStyle.Render(fmt.Sprintf(" ↑/k: up  •  ↓/j: down  •  tab: switch tab  •  s: sort  •  v: split (%s)  •  q/esc: quit", splitLabel))
+	footer := subtleStyle.Width(m.width).Render(fmt.Sprintf(" ↑/k: up  •  ↓/j: down  •  J/K: scroll detail  •  tab: switch tab  •  s: sort  •  v: split (%s)  •  q/esc: quit", splitLabel))
+	availableHeight := m.height - lipgloss.Height(header) - lipgloss.Height(tabs) - lipgloss.Height(footer)
+	frameWidth, frameHeight := paneBorder.GetFrameSize()
+	paddingWidth := paneBorder.GetHorizontalPadding()
+	paddingHeight := paneBorder.GetVerticalPadding()
+
+	// 3. Responsive Layout (Vertical if narrow, Horizontal if wide)
+	isNarrow := m.isNarrow()
+	var panes string
+	if availableHeight < 2*frameHeight+2 {
+		return "Terminal too small for dashboard."
+	}
+
+	if isNarrow {
+		contentHeight := availableHeight - 2*frameHeight
+		topHeight := contentHeight / 2
+		bottomHeight := contentHeight - topHeight
+		fullWidth := m.width - frameWidth
+
+		topList := m.renderLeftList(fullWidth, topHeight)
+		bottomDetail := m.renderRightDetail(fullWidth, bottomHeight)
+
+		panes = lipgloss.JoinVertical(lipgloss.Left,
+			paneBorder.Width(fullWidth+paddingWidth).Height(topHeight+paddingHeight).Render(topList),
+			paneBorder.Width(fullWidth+paddingWidth).Height(bottomHeight+paddingHeight).Render(bottomDetail),
+		)
+	} else {
+		contentHeight := availableHeight - frameHeight
+		leftWidth := (m.width - 2*frameWidth) / 2
+		rightWidth := m.detailWidth()
+
+		leftList := m.renderLeftList(leftWidth, contentHeight)
+		rightDetail := m.renderRightDetail(rightWidth, contentHeight)
+
+		panes = lipgloss.JoinHorizontal(lipgloss.Top,
+			paneBorder.Width(leftWidth+paddingWidth).Height(contentHeight+paddingHeight).Render(leftList),
+			paneBorder.Width(rightWidth+paddingWidth).Height(contentHeight+paddingHeight).Render(rightDetail),
+		)
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
@@ -299,7 +309,30 @@ func (m model) renderLeftList(width, height int) string {
 	return strings.Join(lines[start:end], "\n")
 }
 
+func (m model) isNarrow() bool {
+	return m.splitMode == 1 || (m.splitMode == 0 && m.width < 110)
+}
+
+func (m model) detailWidth() int {
+	frameWidth := paneBorder.GetHorizontalFrameSize()
+	if m.isNarrow() {
+		return m.width - frameWidth
+	}
+	return m.width - (m.width-2*frameWidth)/2 - 2*frameWidth
+}
+
+func (m model) detailLines(width int) []string {
+	content := lipgloss.NewStyle().Width(max(1, width)).Render(m.renderDetailContent(max(5, width)))
+	return strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+}
+
 func (m model) renderRightDetail(width, height int) string {
+	lines := m.detailLines(width)
+	start := min(m.detailOffset, len(lines)-1)
+	return strings.Join(lines[start:min(start+height, len(lines))], "\n")
+}
+
+func (m model) renderDetailContent(width int) string {
 	if m.tab == 0 {
 		gains := m.sortedGains()
 		if len(gains) == 0 || m.cursor >= len(gains) {
@@ -416,14 +449,10 @@ func calcAvg(scores map[string]float64) float64 {
 func truncateStr(s string, maxLen int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.TrimSpace(s)
-	runes := []rune(s)
-	if len(runes) > maxLen {
-		if maxLen > 3 {
-			return string(runes[:maxLen-3]) + "..."
-		}
-		return string(runes[:maxLen])
+	if maxLen <= 3 {
+		return ansi.Truncate(s, maxLen, "")
 	}
-	return s
+	return ansi.Truncate(s, maxLen, "...")
 }
 
 func Run(sum history.Summary) error {
