@@ -124,6 +124,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}
 
 		var historyTurns []checker.Message
+		var transcriptBytes int64
 		if event.TranscriptPath != "" {
 			snapshotBytes, err := os.ReadFile(event.TranscriptPath)
 			if err != nil {
@@ -131,6 +132,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 					return fmt.Errorf("failed to read transcript: %w", err)
 				}
 			} else {
+				transcriptBytes = int64(len(snapshotBytes))
 				h, err := HistoryFromSnapshot(string(snapshotBytes), prompt)
 				if err != nil {
 					return err
@@ -153,16 +155,17 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}
 
 		_ = history.Append(history.Record{
-			Timestamp:      time.Now().UTC(),
-			SessionID:      event.ConversationID,
-			Agent:          "agy",
-			Prompt:         evalPrompt,
-			Pass:           result.Pass,
-			Scores:         result.Scores,
-			Failed:         result.Failed,
-			Clarifications: result.Clarifications,
-			ElapsedMS:      result.ElapsedMS,
-			TranscriptPath: event.TranscriptPath,
+			Timestamp:       time.Now().UTC(),
+			SessionID:       event.ConversationID,
+			TranscriptBytes: &transcriptBytes,
+			Agent:           "agy",
+			Prompt:          prompt,
+			Pass:            result.Pass,
+			Scores:          result.Scores,
+			Failed:          result.Failed,
+			Clarifications:  result.Clarifications,
+			ElapsedMS:       result.ElapsedMS,
+			TranscriptPath:  event.TranscriptPath,
 		}, "")
 
 		if !result.Pass {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,16 +13,18 @@ import (
 )
 
 type Record struct {
-	Timestamp      time.Time          `json:"timestamp"`
-	SessionID      string             `json:"session_id"`
-	Agent          string             `json:"agent"`
-	Prompt         string             `json:"prompt"`
-	Pass           bool               `json:"pass"`
-	Scores         map[string]float64 `json:"scores"`
-	Failed         []string           `json:"failed"`
-	Clarifications []string           `json:"clarifications"`
-	ElapsedMS      float64            `json:"elapsed_ms"`
-	TranscriptPath string             `json:"transcript_path,omitempty"`
+	Timestamp       time.Time          `json:"timestamp"`
+	SessionID       string             `json:"session_id"`
+	TurnID          string             `json:"turn_id,omitempty"`
+	TranscriptBytes *int64             `json:"transcript_bytes,omitempty"`
+	Agent           string             `json:"agent"`
+	Prompt          string             `json:"prompt"`
+	Pass            bool               `json:"pass"`
+	Scores          map[string]float64 `json:"scores"`
+	Failed          []string           `json:"failed"`
+	Clarifications  []string           `json:"clarifications"`
+	ElapsedMS       float64            `json:"elapsed_ms"`
+	TranscriptPath  string             `json:"transcript_path,omitempty"`
 }
 
 func (r Record) ResolveTranscriptPath() string {
@@ -123,17 +126,28 @@ func LoadAll(targetDir string) ([]Record, error) {
 	for _, path := range jsonlFiles {
 		file, err := os.Open(path)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("failed to open history %s: %w", path, err)
 		}
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			text := strings.TrimSpace(scanner.Text())
+		reader := bufio.NewReader(file)
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil && readErr != io.EOF {
+				_ = file.Close()
+				return nil, fmt.Errorf("failed to read history %s: %w", path, readErr)
+			}
+			text := strings.TrimSpace(line)
 			if text == "" {
+				if readErr == io.EOF {
+					break
+				}
 				continue
 			}
 			var r Record
 			if err := json.Unmarshal([]byte(text), &r); err == nil {
 				records = append(records, r)
+			}
+			if readErr == io.EOF {
+				break
 			}
 		}
 		_ = file.Close()

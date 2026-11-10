@@ -15,7 +15,37 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"user-prompt-checker/internal/checker"
+	"user-prompt-checker/internal/history"
 )
+
+func TestGainAcrossTurnsInSameSession(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	rubric := mustLoadRubric(t)
+	score := 0.2
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		answers := map[string]any{}
+		for key := range rubric {
+			answers[key] = map[string]any{"type": "noul", "noul": score}
+		}
+		data, _ := json.Marshal(map[string]any{"answers": answers})
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data))}, nil
+	})}
+	for _, turn := range []string{"first", "second"} {
+		event, _ := json.Marshal(map[string]any{"hook_event_name": "UserPromptSubmit", "session_id": "conversation", "turn_id": turn, "prompt": "Fix the login button"})
+		Run(bytes.NewReader(event), io.Discard, rubric, checker.Config{URL: "http://localhost", Threshold: 0.6}, client)
+		score = 0.9
+	}
+	records, err := history.LoadAll("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || records[0].TurnID != "first" || records[1].TurnID != "second" {
+		t.Fatalf("unexpected records: %+v", records)
+	}
+	if gains := history.Analyze(records).GainPairs; len(gains) != 1 || gains[0].Gain != 0.7 {
+		t.Fatalf("expected one cross-turn gain: %+v", gains)
+	}
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -63,7 +93,7 @@ func makeTranscriptMessageWithImages(role, text, turn string, imageCount int) st
 	}
 	for i := 0; i < imageCount; i++ {
 		content = append(content, map[string]any{
-			"type": "input_image",
+			"type":      "input_image",
 			"image_url": map[string]any{"url": "data:image/png;base64,..."},
 		})
 	}
@@ -290,9 +320,9 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":      map[string]any{"type": "noul", "noul": 0.95},
+					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
 					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":        map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)

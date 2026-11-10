@@ -105,12 +105,10 @@ func Install(agent string, binaryPath string, targetFile string) error {
 		found := false
 		newList := make([]any, 0, len(existingList)+1)
 		for _, item := range existingList {
-			if isCodexCheckerEntry(item) {
-				newList = append(newList, entry)
+			if updateCodexCheckerHooks(item, entry["hooks"].([]map[string]any)[0]) {
 				found = true
-			} else {
-				newList = append(newList, item)
 			}
+			newList = append(newList, item)
 		}
 		if !found {
 			newList = append(newList, entry)
@@ -170,9 +168,12 @@ func Uninstall(agent string, targetFile string) error {
 			if rawList, ok := hooksMap["UserPromptSubmit"].([]any); ok {
 				var remaining []any
 				for _, item := range rawList {
-					if !isCodexCheckerEntry(item) {
-						remaining = append(remaining, item)
+					if updateCodexCheckerHooks(item, nil) {
+						if len(item.(map[string]any)["hooks"].([]any)) == 0 {
+							continue
+						}
 					}
+					remaining = append(remaining, item)
 				}
 				if len(remaining) > 0 {
 					hooksMap["UserPromptSubmit"] = remaining
@@ -197,33 +198,37 @@ func Uninstall(agent string, targetFile string) error {
 	return os.WriteFile(targetFile, out, 0o600)
 }
 
-func isCodexCheckerEntry(item any) bool {
+func updateCodexCheckerHooks(item any, replacement map[string]any) bool {
 	m, ok := item.(map[string]any)
 	if !ok {
 		return false
 	}
 	hooks, ok := m["hooks"].([]any)
 	if !ok {
-		// []map[string]any の場合もある
-		if mapHooks, ok := m["hooks"].([]map[string]any); ok {
-			for _, h := range mapHooks {
-				if cmd, ok := h["command"].(string); ok && containsCheckerCommand(cmd) {
-					return true
-				}
-			}
-		}
 		return false
 	}
+	found := false
+	remaining := make([]any, 0, len(hooks))
 	for _, h := range hooks {
 		if hm, ok := h.(map[string]any); ok {
-			if cmd, ok := hm["command"].(string); ok && containsCheckerCommand(cmd) {
-				return true
+			if cmd, ok := hm["command"].(string); ok && (containsCheckerCommand(cmd) ||
+				(hm["statusMessage"] == "Checking user prompt with local d1" && strings.HasSuffix(cmd, " hook codex"))) {
+				found = true
+				if replacement != nil {
+					remaining = append(remaining, replacement)
+				}
+				continue
 			}
 		}
+		remaining = append(remaining, h)
 	}
-	return false
+	if found {
+		m["hooks"] = remaining
+	}
+	return found
 }
 
 func containsCheckerCommand(cmd string) bool {
-	return strings.Contains(cmd, "user-prompt-checker") || strings.Contains(cmd, "hook codex")
+	fields := strings.Fields(cmd)
+	return len(fields) == 3 && filepath.Base(fields[0]) == "user-prompt-checker" && fields[1] == "hook" && fields[2] == "codex"
 }

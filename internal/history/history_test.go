@@ -3,11 +3,36 @@ package history_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"user-prompt-checker/internal/history"
 )
+
+func TestLoadLongPromptAndFollowingRecords(t *testing.T) {
+	dir := t.TempDir()
+	for _, prompt := range []string{"before", strings.Repeat("x", 70000), "after"} {
+		if err := history.Append(history.Record{Prompt: prompt}, dir); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "history-*.jsonl"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("unexpected history files: %v, %v", files, err)
+	}
+	data, err := os.ReadFile(files[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(files[0], data[:len(data)-1], 0600); err != nil {
+		t.Fatal(err)
+	}
+	records, err := history.LoadAll(dir)
+	if err != nil || len(records) != 3 {
+		t.Fatalf("wanted all 3 records, got %d, error %v", len(records), err)
+	}
+}
 
 func TestAppendAndLoad(t *testing.T) {
 	tmpDir := t.TempDir()

@@ -222,6 +222,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 			}
 		}
 		turnID, _ := event["turn_id"].(string)
+		sessionID, _ := event["session_id"].(string)
 		prompt, ok := event["prompt"].(string)
 		if !ok {
 			return errors.New("missing prompt in hook event")
@@ -246,16 +247,18 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}
 
 		_ = history.Append(history.Record{
-			Timestamp:      time.Now().UTC(),
-			SessionID:      turnID,
-			Agent:          "codex",
-			Prompt:         evalPrompt,
-			Pass:           result.Pass,
-			Scores:         result.Scores,
-			Failed:         result.Failed,
-			Clarifications: result.Clarifications,
-			ElapsedMS:      result.ElapsedMS,
-			TranscriptPath: transcriptPath,
+			Timestamp:       time.Now().UTC(),
+			SessionID:       sessionID,
+			TurnID:          turnID,
+			TranscriptBytes: new(int64(len(snapshot))),
+			Agent:           "codex",
+			Prompt:          evalPrompt,
+			Pass:            result.Pass,
+			Scores:          result.Scores,
+			Failed:          result.Failed,
+			Clarifications:  result.Clarifications,
+			ElapsedMS:       result.ElapsedMS,
+			TranscriptPath:  transcriptPath,
 		}, "")
 
 		if !result.Pass {

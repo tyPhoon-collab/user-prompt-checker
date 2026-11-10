@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"user-prompt-checker/internal/checker"
+	"user-prompt-checker/internal/history"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -94,9 +95,9 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":      map[string]any{"type": "noul", "noul": 0.95},
+					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
 					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":        map[string]any{"type": "noul", "noul": 0.95},
+					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)
@@ -119,6 +120,13 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 	wantPrompt := "Fix error\n\n[Attached 1 image(s)]"
 	if interceptedPrompt != wantPrompt {
 		t.Fatalf("expected evaluated prompt %q, got %q", wantPrompt, interceptedPrompt)
+	}
+	records, err := history.LoadAll("")
+	if err != nil || len(records) != 1 {
+		t.Fatalf("unexpected saved history: %+v, %v", records, err)
+	}
+	if records[0].Prompt != "Fix error" || records[0].TranscriptBytes == nil || *records[0].TranscriptBytes != 0 {
+		t.Fatalf("expected original prompt and empty transcript boundary: %+v", records[0])
 	}
 }
 

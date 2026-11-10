@@ -2,12 +2,64 @@ package installer_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"user-prompt-checker/internal/installer"
 )
+
+func TestMixedCodexHookGroupIsPreserved(t *testing.T) {
+	for _, uninstall := range []bool{false, true} {
+		t.Run(fmt.Sprint(uninstall), func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), "hooks.json")
+			input := `{"hooks":{"UserPromptSubmit":[{"matcher":"special","hooks":[{"type":"command","command":"/old/user-prompt-checker hook codex"},{"type":"command","command":"other-linter"},{"type":"command","command":"other-tool hook codex"},{"type":"command","command":"echo user-prompt-checker"}]}]}}`
+			if err := os.WriteFile(target, []byte(input), 0600); err != nil {
+				t.Fatal(err)
+			}
+			var err error
+			if uninstall {
+				err = installer.Uninstall("codex", target)
+			} else {
+				err = installer.Install("codex", "/new/user-prompt-checker", target)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var root map[string]any
+			if err := json.Unmarshal(data, &root); err != nil {
+				t.Fatal(err)
+			}
+			groups := root["hooks"].(map[string]any)["UserPromptSubmit"].([]any)
+			group := groups[0].(map[string]any)
+			if group["matcher"] != "special" {
+				t.Fatalf("matcher lost: %s", data)
+			}
+			hooks := group["hooks"].([]any)
+			want := 4
+			if uninstall {
+				want = 3
+			}
+			if len(hooks) != want {
+				t.Fatalf("unexpected hooks: %s", data)
+			}
+			foundOther := false
+			for _, h := range hooks {
+				if h.(map[string]any)["command"] == "other-linter" {
+					foundOther = true
+				}
+			}
+			if !foundOther {
+				t.Fatalf("other hook lost: %s", data)
+			}
+		})
+	}
+}
 
 func TestInstallAndUninstallAGY(t *testing.T) {
 	tmpDir := t.TempDir()

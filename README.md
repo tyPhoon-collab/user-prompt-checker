@@ -48,6 +48,9 @@ just gain
 The exit code is `0` when the check completes (even if `pass` is `false`), `1` on network or input errors, and `2` on invalid CLI flags.
 Check the `pass` field in the JSON output to determine whether the prompt passed.
 
+New hook history records keep conversation and turn identifiers separately and record the transcript byte boundary at evaluation time.
+The gain dashboard reads context only within that boundary. Older records remain available for score analysis, but their conversation context is omitted because the original boundary is unknown.
+
 `evaluate` runs all cases in `cases.yaml` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json`.
 Specify `--output <path>` to save to another file or `--threshold <float>` to test a different threshold:
 
