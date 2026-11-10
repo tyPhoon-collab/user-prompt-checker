@@ -1,6 +1,6 @@
 # user-prompt-checker
 
-A standalone CLI and agent lifecycle hook that evaluates user prompt clarity, scope, and context sufficiency against an embedded rubric using a local LLM.
+A standalone CLI and agent lifecycle hook that evaluates user prompt intent clarity, context sufficiency, and consistency against an embedded rubric using a local LLM.
 
 ## Language
 
@@ -13,7 +13,7 @@ The measurable increase in rubric score achieved when a user revises and resubmi
 _Avoid_: Score diff, delta, improvement rate, bonus
 
 **Rubric**:
-The canonical three-criterion evaluation standard (Intent Clarity, Scope Specificity, and Context Self-Sufficiency) against which prompts are scored.
+The canonical three-criterion evaluation standard (Intent clarity, Context sufficiency, and Consistency) against which prompts are scored.
 _Avoid_: Rule, criteria list, spec, checklist
 
 **Agent Hook**:
