@@ -170,6 +170,7 @@ just uninstall codex  # or: ./user-prompt-checker uninstall codex
 ### 1. Codex CLI Hook Integration (`hook codex`)
 
 The `hook codex` command reads a `UserPromptSubmit` JSON event from stdin and reads `transcript_path` to extract up to the last 6 messages (`user` messages with `user` provenance, `assistant` `final_answer` messages, and `request_user_input_async` tool questions from prior turns).
+Compaction records are skipped; context is extracted from the original messages retained in the JSONL log, including messages before compaction. If those messages are absent, only the available messages are used.
 Structured tool replies (`<send_user_message_question_reply>...</send_user_message_question_reply>`) automatically skip model evaluation and pass through.
 
 - **When all scores >= 0.6**: outputs `{}` with no notification.
@@ -203,7 +204,7 @@ To enable the hook in your normal Codex environment, build the binary and regist
 ```
 
 After updating `hooks.json`, run `/hooks` inside Codex CLI to review and trust the hook.
-Transcript parsing relies on the private JSONL format observed in Codex CLI `0.166.0`; compacted transcripts, image inputs, and future CLI schema changes require separate verification.
+Transcript parsing relies on the private JSONL format observed in Codex CLI `0.166.0`; image inputs and future CLI schema changes require separate verification.
 Hook protocol reference: [OpenAI Hooks Documentation](https://learn.chatgpt.com/docs/hooks)
 
 ### 2. Antigravity Hook Integration (`hook agy`)

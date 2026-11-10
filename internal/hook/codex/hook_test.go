@@ -241,10 +241,69 @@ func TestOnlyLastSixMessagesAreSent(t *testing.T) {
 	}
 }
 
-func TestUnsupportedHistoryIsAnError(t *testing.T) {
-	snap := `{"type":"compacted"}`
-	if _, _, err := HistoryFromSnapshot(snap, "current"); err == nil {
-		t.Fatalf("expected error for unsupported snapshot: %s", snap)
+func TestCompactedTranscriptContinuesEvaluation(t *testing.T) {
+	compacted := `{"type":"compacted","payload":{"replacement_history":[{"type":"compaction","encrypted_content":"opaque"}]}}`
+	var lines []string
+	var want []checker.Message
+	for i := 0; i < 8; i++ {
+		text := string(rune('a' + i))
+		role, phase := "user", ""
+		if i%2 == 1 {
+			role, phase = "assistant", "final_answer"
+		}
+		lines = append(lines, makeTranscriptMessage(role, text, "previous", "user", phase))
+		want = append(want, checker.Message{Role: role, Content: text})
+		if i == 3 || i == 6 {
+			lines = append(lines, compacted)
+		}
+	}
+	lines = append(lines, makeTranscriptMessage("user", "current prompt", "current", "user", ""))
+	for name, snapshot := range map[string]string{"only compaction": compacted, "repeated compaction": strings.Join(lines, "\n")} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("XDG_DATA_HOME", t.TempDir())
+			transcript := filepath.Join(t.TempDir(), "history.jsonl")
+			if err := os.WriteFile(transcript, []byte(snapshot), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			rubric := mustLoadRubric(t)
+			called := false
+			client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				called = true
+				var body struct {
+					State struct {
+						Conversation []checker.Message `json:"conversation"`
+					} `json:"state"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				expected := []checker.Message{}
+				if name == "repeated compaction" {
+					expected = want[len(want)-6:]
+				}
+				if diff := cmp.Diff(expected, body.State.Conversation); diff != "" {
+					t.Fatalf("history mismatch (-want +got):\n%s", diff)
+				}
+				answers := map[string]any{}
+				for key := range rubric {
+					answers[key] = map[string]any{"type": "noul", "noul": 0.9}
+				}
+				data, _ := json.Marshal(map[string]any{"answers": answers})
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(data))}, nil
+			})}
+			event, _ := json.Marshal(map[string]any{"hook_event_name": "UserPromptSubmit", "turn_id": "current", "prompt": "Continue with the fix", "transcript_path": transcript})
+			var out bytes.Buffer
+			Run(bytes.NewReader(event), &out, rubric, checker.Config{URL: "http://localhost", Threshold: 0.6}, client)
+			if !called || strings.TrimSpace(out.String()) != "{}" {
+				t.Fatalf("expected model evaluation and allow response; called=%v, response=%s", called, out.String())
+			}
+		})
+	}
+}
+
+func TestMalformedTranscriptIsAnError(t *testing.T) {
+	if _, _, err := HistoryFromSnapshot(`{"type":`, "current"); err == nil {
+		t.Fatal("expected error for malformed transcript")
 	}
 }
 

@@ -89,9 +89,7 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			return nil, nil, err
 		}
-		if row.Type == "compacted" {
-			return nil, nil, errors.New("compacted conversation transcripts are not supported")
-		}
+		// Compaction records do not replace the original messages in the JSONL log.
 		if row.Type != "response_item" {
 			continue
 		}
