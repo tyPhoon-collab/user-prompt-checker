@@ -208,6 +208,7 @@ Hook protocol reference: [OpenAI Hooks Documentation](https://learn.chatgpt.com/
 
 The `hook agy` command integrates with Antigravity as a `PreInvocation` lifecycle hook.
 It receives the hook payload via stdin, extracts the prompt from `lastUserInput` (stripping enclosing `<USER_REQUEST>` wrappers if present), and parses prior `USER_INPUT` and `PLANNER_RESPONSE` turns from `transcriptPath`.
+If the latest transcript `USER_INPUT` matches the prompt and already has a `PLANNER_RESPONSE`, the hook returns `{}` without evaluating or recording it again. A new `USER_INPUT` is evaluated even when its text is unchanged.
 
 - **When all scores >= 0.6**: outputs `{}` to allow the agent execution to proceed normally.
 - **When any score < 0.6**: outputs:

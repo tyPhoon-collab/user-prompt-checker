@@ -38,7 +38,8 @@ func LoadContext(rec history.Record) ([]checker.Message, error) {
 	snapshot := string(data)
 
 	if rec.Agent == "agy" {
-		return agy.HistoryFromSnapshot(snapshot, rec.Prompt)
+		msgs, _, err := agy.HistoryFromSnapshot(snapshot, rec.Prompt)
+		return msgs, err
 	}
 	if rec.Agent == "codex" {
 		msgs, _, err := codex.HistoryFromSnapshot(snapshot, rec.TurnID)

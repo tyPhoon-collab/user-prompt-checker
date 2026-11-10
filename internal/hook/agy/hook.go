@@ -49,10 +49,13 @@ func CountAttachedImages(raw string) int {
 	return 0
 }
 
-func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Message, error) {
+// HistoryFromSnapshot also reports whether the latest user input already has a model response.
+func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Message, bool, error) {
 	history := []checker.Message{}
 	cleanedCurrent := CleanUserPrompt(currentPrompt)
 	unansweredUser := false
+	currentUser := false
+	continuation := false
 
 	for _, line := range strings.Split(snapshot, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -65,12 +68,14 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 			Content string `json:"content"`
 		}
 		if err := json.Unmarshal([]byte(trimmed), &row); err != nil {
-			return nil, fmt.Errorf("failed to parse transcript line: %w", err)
+			return nil, false, fmt.Errorf("failed to parse transcript line: %w", err)
 		}
 		switch row.Type {
 		case "USER_INPUT":
 			unansweredUser = false
 			prompt := CleanUserPrompt(row.Content)
+			currentUser = prompt != "" && prompt == cleanedCurrent
+			continuation = false
 			if prompt == "" || prompt == cleanedCurrent {
 				continue
 			}
@@ -78,6 +83,7 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 			unansweredUser = true
 		case "PLANNER_RESPONSE":
 			unansweredUser = false
+			continuation = currentUser
 			content := strings.TrimSpace(row.Content)
 			if content != "" {
 				history = append(history, checker.Message{Role: "assistant", Content: content})
@@ -92,7 +98,7 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 	if len(history) > 6 {
 		history = history[len(history)-6:]
 	}
-	return history, nil
+	return history, continuation, nil
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {
@@ -122,9 +128,12 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 				}
 			} else {
 				transcriptBytes = int64(len(snapshotBytes))
-				h, err := HistoryFromSnapshot(string(snapshotBytes), prompt)
+				h, continuation, err := HistoryFromSnapshot(string(snapshotBytes), prompt)
 				if err != nil {
 					return err
+				}
+				if continuation {
+					return nil
 				}
 				historyTurns = h
 			}

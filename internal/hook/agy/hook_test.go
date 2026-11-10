@@ -66,7 +66,7 @@ func TestHistoryFromSnapshot(t *testing.T) {
 		`{"type":"ERROR_MESSAGE","source":"SYSTEM_SDK","error":"blocked by hook"}`,
 		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"Current prompt"}`,
 	}
-	history, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "Current prompt")
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "Current prompt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,6 +129,66 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 	}
 	if records[0].Prompt != "Fix error" || records[0].TranscriptBytes == nil || *records[0].TranscriptBytes != 0 {
 		t.Fatalf("expected original prompt and empty transcript boundary: %+v", records[0])
+	}
+}
+
+func TestRunSkipsContinuationsAndEvaluatesNewUserInputs(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	rubric := mustLoadRubric(t)
+	transcript := filepath.Join(t.TempDir(), "transcript.jsonl")
+	calls := 0
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"answers":{"intent_clear":{"type":"noul","noul":0.9},"context_sufficient":{"type":"noul","noul":0.9},"consistent":{"type":"noul","noul":0.9}}}`)),
+		}, nil
+	})}
+	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
+	steps := []struct {
+		name       string
+		row        string
+		prompt     string
+		wantChecks int
+	}{
+		{"first input", `{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>Fix the button.</USER_REQUEST>"}`, "Fix the button.", 1},
+		{"tool call", `{"type":"PLANNER_RESPONSE","source":"MODEL","content":"","tool_calls":[{"name":"read_file"}]}`, "Fix the button.", 1},
+		{"tool result", `{"type":"GENERIC","source":"MODEL","content":"file contents"}`, "Fix the button.", 1},
+		{"another response", `{"type":"PLANNER_RESPONSE","source":"MODEL","content":"Done."}`, "Fix the button.", 1},
+		{"same text resubmitted", `{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>Fix the button.</USER_REQUEST>"}`, "Fix the button.", 2},
+		{"resubmitted input response", `{"type":"PLANNER_RESPONSE","source":"MODEL","content":"Done again."}`, "Fix the button.", 2},
+		{"different input", `{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"Fix the heading."}`, "Fix the heading.", 3},
+	}
+	var snapshot string
+	for i, step := range steps {
+		snapshot += step.row + "\n"
+		if err := os.WriteFile(transcript, []byte(snapshot), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		event, err := json.Marshal(Event{
+			ConversationID: "conversation",
+			TranscriptPath: transcript,
+			LastUserInput:  "<USER_REQUEST>" + step.prompt + "</USER_REQUEST>",
+			InvocationNum:  i,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out bytes.Buffer
+		Run(bytes.NewReader(event), &out, rubric, cfg, client)
+		if got := strings.TrimSpace(out.String()); got != "{}" {
+			t.Errorf("%s: expected allow response, got %s", step.name, got)
+		}
+		if calls != step.wantChecks {
+			t.Errorf("%s: model calls = %d, want %d", step.name, calls, step.wantChecks)
+		}
+		records, err := history.LoadAll("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(records) != step.wantChecks {
+			t.Errorf("%s: history records = %d, want %d", step.name, len(records), step.wantChecks)
+		}
 	}
 }
 
@@ -208,7 +268,7 @@ func TestHistoryFromSnapshotMalformedLineFails(t *testing.T) {
 		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"First prompt"}`,
 		`{invalid json line`,
 	}
-	_, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "Second prompt")
+	_, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "Second prompt")
 	if err == nil {
 		t.Fatal("expected error on malformed JSON line, got nil")
 	}
@@ -221,7 +281,11 @@ func TestMalformedTranscriptBlocksInvocation(t *testing.T) {
 	rubric := mustLoadRubric(t)
 	dir := t.TempDir()
 	transcript := filepath.Join(dir, "transcript.jsonl")
-	if err := os.WriteFile(transcript, []byte("not a valid json line\n"), 0o600); err != nil {
+	if err := os.WriteFile(transcript, []byte(strings.Join([]string{
+		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"Fix it."}`,
+		`{"type":"PLANNER_RESPONSE","source":"MODEL","content":"Working on it."}`,
+		"not a valid json line",
+	}, "\n")), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	event, _ := json.Marshal(Event{
@@ -260,7 +324,7 @@ func TestGoldenTranscriptSnapshotExtraction(t *testing.T) {
 		`{"step_index":3,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-11-07T18:24:30Z","content":"<USER_REQUEST>\nそれで進めて。\n</USER_REQUEST>"}`,
 	}, "\n")
 
-	history, err := HistoryFromSnapshot(goldenTranscript, "それで進めて。")
+	history, _, err := HistoryFromSnapshot(goldenTranscript, "それで進めて。")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
