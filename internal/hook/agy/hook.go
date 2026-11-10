@@ -158,34 +158,30 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}, "")
 
 		if !result.Pass {
-			blockReason := hook.FormatBlockReason(result.Scores, rubric, cfg.Threshold)
-			response = map[string]any{
-				"terminationBehavior": "terminate",
-				"injectSteps": []map[string]any{
-					{
-						"errorMessage": map[string]any{
-							"userMessage": blockReason,
-						},
-					},
-				},
-			}
+			response = blockResponse(hook.FormatBlockReason(result.Scores, rubric, cfg.Threshold))
 		}
 		return nil
 	}()
 
 	if err != nil {
-		response = map[string]any{
-			"terminationBehavior": "terminate",
-			"injectSteps": []map[string]any{
-				{
-					"errorMessage": map[string]any{
-						"userMessage": "Prompt check failed: " + err.Error(),
-					},
-				},
-			},
-		}
+		WriteError(stdout, err)
+		return
 	}
 
 	out, _ := json.Marshal(response)
 	fmt.Fprintln(stdout, string(out))
+}
+
+func blockResponse(reason string) map[string]any {
+	return map[string]any{
+		"terminationBehavior": "terminate",
+		"injectSteps": []map[string]any{
+			{"errorMessage": map[string]any{"userMessage": reason}},
+		},
+	}
+}
+
+// WriteError writes a terminating hook response for a prompt check failure.
+func WriteError(stdout io.Writer, err error) {
+	_ = json.NewEncoder(stdout).Encode(blockResponse("Prompt check failed: " + err.Error()))
 }

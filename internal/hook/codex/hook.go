@@ -239,10 +239,7 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 		}, "")
 
 		if !result.Pass {
-			response = map[string]any{
-				"decision": "block",
-				"reason":   hook.FormatBlockReason(result.Scores, rubric, cfg.Threshold),
-			}
+			response = blockResponse(hook.FormatBlockReason(result.Scores, rubric, cfg.Threshold))
 		} else if len(warnings) > 0 {
 			response = map[string]any{
 				"hookSpecificOutput": map[string]any{
@@ -255,12 +252,19 @@ func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.C
 	}()
 
 	if err != nil {
-		response = map[string]any{
-			"decision": "block",
-			"reason":   "Prompt check failed: " + err.Error(),
-		}
+		WriteError(stdout, err)
+		return
 	}
 
 	out, _ := json.Marshal(response)
 	fmt.Fprintln(stdout, string(out))
+}
+
+func blockResponse(reason string) map[string]any {
+	return map[string]any{"decision": "block", "reason": reason}
+}
+
+// WriteError writes a blocking hook response for a prompt check failure.
+func WriteError(stdout io.Writer, err error) {
+	_ = json.NewEncoder(stdout).Encode(blockResponse("Prompt check failed: " + err.Error()))
 }

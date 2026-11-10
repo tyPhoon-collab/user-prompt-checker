@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -110,18 +111,7 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 
 	if math.IsNaN(parsed.Threshold) || parsed.Threshold < 0 || parsed.Threshold > 1 || math.IsNaN(timeoutSec) || math.IsInf(timeoutSec, 0) || timeoutSec <= 0 {
 		if isHook {
-			if parsed.Hook.Agent == "agy" {
-				resp, _ := json.Marshal(map[string]any{
-					"terminationBehavior": "terminate",
-					"injectSteps": []map[string]any{
-						{"errorMessage": map[string]any{"userMessage": "Prompt check failed: invalid threshold or timeout"}},
-					},
-				})
-				fmt.Fprintln(stdout, string(resp))
-				return 0
-			}
-			resp, _ := json.Marshal(map[string]any{"decision": "block", "reason": "Prompt check failed: invalid threshold or timeout"})
-			fmt.Fprintln(stdout, string(resp))
+			parsed.Hook.writeError(stdout, errors.New("invalid threshold or timeout"))
 			return 0
 		}
 		fmt.Fprintln(stderr, "Error: threshold must be in [0, 1] and timeout must be a positive finite number")
@@ -131,18 +121,7 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 	rubric, err := checker.LoadRubric(parsed.Rubric)
 	if err != nil {
 		if isHook {
-			if parsed.Hook.Agent == "agy" {
-				resp, _ := json.Marshal(map[string]any{
-					"terminationBehavior": "terminate",
-					"injectSteps": []map[string]any{
-						{"errorMessage": map[string]any{"userMessage": "Prompt check failed: " + err.Error()}},
-					},
-				})
-				fmt.Fprintln(stdout, string(resp))
-				return 0
-			}
-			resp, _ := json.Marshal(map[string]any{"decision": "block", "reason": "Prompt check failed: " + err.Error()})
-			fmt.Fprintln(stdout, string(resp))
+			parsed.Hook.writeError(stdout, err)
 			return 0
 		}
 		fmt.Fprintf(stderr, "Error: %v\n", err)
@@ -283,6 +262,15 @@ func runCLI(args []string, stdin io.Reader, stdout, stderr io.Writer) (exitCode 
 }
 
 type kongExit struct{}
+
+func (cmd hookCmd) writeError(stdout io.Writer, err error) {
+	switch cmd.Agent {
+	case "agy":
+		agy.WriteError(stdout, err)
+	case "codex":
+		codex.WriteError(stdout, err)
+	}
+}
 
 func isTerminalWriter(w io.Writer) bool {
 	if f, ok := w.(*os.File); ok {
