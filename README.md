@@ -110,7 +110,7 @@ flowchart TD
     IsReply -- "Yes" --> AllowSkip["Allow: return empty JSON {}\n(Skip model check)"]
     IsReply -- "No" --> ParseHistory{"Parse history\n(User, Assistant, Tool questions)"}
     ParseHistory -- "Malformed" --> BlockError
-    ParseHistory -- "OK (up to last 6)" --> CallOllama["Call Ollama d1:2b (/v1/systemone)\n10s timeout"]
+    ParseHistory -- "OK (up to last 10)" --> CallOllama["Call Ollama d1:2b (/v1/systemone)\n10s timeout"]
 
     CallOllama --> NetResult{"HTTP call status"}
     NetResult -- "Connection Refused / Timeout" --> AllowNet["Allow: return empty JSON {}\n(No record written)"]
@@ -168,7 +168,7 @@ just uninstall codex  # or: ./user-prompt-checker uninstall codex
 
 ### 1. Codex CLI Hook Integration (`hook codex`)
 
-The `hook codex` command reads a `UserPromptSubmit` JSON event from stdin and reads `transcript_path` to extract up to the last 6 messages (`user` messages with `user` provenance, `assistant` `final_answer` messages, and `request_user_input_async` tool questions from prior turns).
+The `hook codex` command reads a `UserPromptSubmit` JSON event from stdin and reads `transcript_path` to extract up to the last 10 messages (`user` messages with `user` provenance, `assistant` `final_answer` messages, and `request_user_input_async` tool questions from prior turns).
 Compaction records are skipped; context is extracted from the original messages retained in the JSONL log, including messages before compaction. If those messages are absent, only the available messages are used.
 Structured tool replies (`<send_user_message_question_reply>...</send_user_message_question_reply>`) automatically skip model evaluation and pass through.
 

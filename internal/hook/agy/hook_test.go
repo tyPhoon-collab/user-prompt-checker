@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -334,5 +335,29 @@ func TestGoldenTranscriptSnapshotExtraction(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, history); diff != "" {
 		t.Fatalf("extracted history mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestAgyHistoryWindowAndSkillStripping(t *testing.T) {
+	var lines []string
+	for i := 0; i < 15; i++ {
+		lines = append(lines, fmt.Sprintf(`{"step_index":%d,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>msg %d</USER_REQUEST>"}`, i*2, i))
+		lines = append(lines, fmt.Sprintf(`{"step_index":%d,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","content":"reply %d"}`, i*2+1, i))
+	}
+	// Add a skill-wrapped message
+	lines = append(lines, `{"step_index":30,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST><skill><name>foo</name>skill content</skill>real command</USER_REQUEST>"}`)
+	lines = append(lines, `{"step_index":31,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","content":"ok"}`)
+
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "current prompt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 10 {
+		t.Fatalf("expected 10 messages, got %d", len(history))
+	}
+	// The second-to-last item should have the skill tag stripped
+	lastUser := history[len(history)-2]
+	if lastUser.Content != "real command" {
+		t.Fatalf("expected 'real command', got %q", lastUser.Content)
 	}
 }

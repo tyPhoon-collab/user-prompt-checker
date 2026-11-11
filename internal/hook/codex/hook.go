@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,14 @@ import (
 	"user-prompt-checker/internal/history"
 	"user-prompt-checker/internal/hook"
 )
+
+const maxHistoryMessages = 10
+
+var skillTagRegex = regexp.MustCompile(`(?s)<skill>.*?</skill>`)
+
+func stripSkillTags(s string) string {
+	return strings.TrimSpace(skillTagRegex.ReplaceAllString(s, ""))
+}
 
 func IsQuestionReplyPrompt(prompt string) bool {
 	trimmed := strings.TrimSpace(prompt)
@@ -164,13 +173,13 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 				}
 			}
 		}
-		joined := strings.Join(texts, "\n")
-		if strings.TrimSpace(joined) != "" {
+		joined := stripSkillTags(strings.Join(texts, "\n"))
+		if joined != "" {
 			history = append(history, checker.Message{Role: p.Role, Content: joined})
 		}
 	}
-	if len(history) > 6 {
-		history = history[len(history)-6:]
+	if len(history) > maxHistoryMessages {
+		history = history[len(history)-maxHistoryMessages:]
 	}
 	return history, warnings, nil
 }

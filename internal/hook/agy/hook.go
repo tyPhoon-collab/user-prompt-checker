@@ -17,8 +17,15 @@ import (
 	"user-prompt-checker/internal/hook"
 )
 
+const maxHistoryMessages = 10
+
 var userRequestRegex = regexp.MustCompile(`(?s)<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>`)
 var uploadedImagesRegex = regexp.MustCompile(`The user has uploaded (\d+)\s+image\(s\):`)
+var skillTagRegex = regexp.MustCompile(`(?s)<skill>.*?</skill>`)
+
+func stripSkillTags(s string) string {
+	return strings.TrimSpace(skillTagRegex.ReplaceAllString(s, ""))
+}
 
 type Event struct {
 	ConversationID        string   `json:"conversationId"`
@@ -34,9 +41,9 @@ type Event struct {
 func CleanUserPrompt(raw string) string {
 	matches := userRequestRegex.FindStringSubmatch(raw)
 	if len(matches) > 1 && strings.TrimSpace(matches[1]) != "" {
-		return strings.TrimSpace(matches[1])
+		return stripSkillTags(strings.TrimSpace(matches[1]))
 	}
-	return strings.TrimSpace(raw)
+	return stripSkillTags(strings.TrimSpace(raw))
 }
 
 func CountAttachedImages(raw string) int {
@@ -95,8 +102,8 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 			}
 		}
 	}
-	if len(history) > 6 {
-		history = history[len(history)-6:]
+	if len(history) > maxHistoryMessages {
+		history = history[len(history)-maxHistoryMessages:]
 	}
 	return history, continuation, nil
 }

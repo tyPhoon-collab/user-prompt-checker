@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -219,25 +220,48 @@ func TestQuestionReplyPromptSkipsModelCall(t *testing.T) {
 	}
 }
 
-func TestOnlyLastSixMessagesAreSent(t *testing.T) {
+func TestOnlyLastTenMessagesAreSent(t *testing.T) {
 	var lines []string
-	for i := 0; i < 10; i++ {
-		lines = append(lines, makeTranscriptMessage("user", string(rune('0'+i)), string(rune('a'+i)), "user", ""))
+	for i := 0; i < 15; i++ {
+		lines = append(lines, makeTranscriptMessage("user", fmt.Sprintf("%d", i), fmt.Sprintf("turn-%d", i), "user", ""))
 	}
 	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "current")
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []checker.Message{
-		{Role: "user", Content: "4"},
 		{Role: "user", Content: "5"},
 		{Role: "user", Content: "6"},
 		{Role: "user", Content: "7"},
 		{Role: "user", Content: "8"},
 		{Role: "user", Content: "9"},
+		{Role: "user", Content: "10"},
+		{Role: "user", Content: "11"},
+		{Role: "user", Content: "12"},
+		{Role: "user", Content: "13"},
+		{Role: "user", Content: "14"},
 	}
 	if diff := cmp.Diff(want, history); diff != "" {
 		t.Fatalf("history window mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestSkillTagsAreStrippedFromHistory(t *testing.T) {
+	lines := []string{
+		makeTranscriptMessage("user", "<skill>\n<name>hunk-review</name>\nSKILL BODY CONTENT\n</skill>", "turn-1", "user", ""),
+		makeTranscriptMessage("assistant", "How can I help with hunk-review?", "turn-1", "user", "final_answer"),
+		makeTranscriptMessage("user", "<skill>\n<name>den</name>\nDOCS\n</skill>\nOpen the dashboard", "turn-2", "user", ""),
+	}
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "current")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []checker.Message{
+		{Role: "assistant", Content: "How can I help with hunk-review?"},
+		{Role: "user", Content: "Open the dashboard"},
+	}
+	if diff := cmp.Diff(want, history); diff != "" {
+		t.Fatalf("skill tag strip mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -279,7 +303,7 @@ func TestCompactedTranscriptContinuesEvaluation(t *testing.T) {
 				}
 				expected := []checker.Message{}
 				if name == "repeated compaction" {
-					expected = want[len(want)-6:]
+					expected = want
 				}
 				if diff := cmp.Diff(expected, body.State.Conversation); diff != "" {
 					t.Fatalf("history mismatch (-want +got):\n%s", diff)
