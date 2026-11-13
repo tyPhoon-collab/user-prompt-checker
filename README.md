@@ -124,13 +124,13 @@ flowchart TD
 
 ## Evaluation Criteria
 
-`internal/checker/rubric.json` (embedded by default, overrideable via `--rubric`) defines three independent criteria evaluated in English:
+`internal/checker/rubric.json` (embedded by default, overrideable via `--rubric`) defines three independent criteria evaluated in Japanese:
 
 | Criterion | What it checks |
 | --- | --- |
-| `intent_clear` | Whether the prompt expresses an action, question, or conversational reply rather than a bare noun phrase or ungrounded continuation |
-| `context_sufficient` | Whether the subject and desired outcome are identifiable from the prompt and conversation without guessing missing targets or unchosen options |
-| `consistent` | Whether active requirements are logically compatible (an explicit latest correction supersedes an older requirement) |
+| `intent_clear` | 単なる名詞句ではなく、行動の要求、質問、または会話の返答を表現しているか |
+| `context_sufficient` | プロンプト単体または直前の会話を踏まえて、対象と期待する結果を特定できるか |
+| `consistent` | プロンプトと会話内の要求が論理的に両立可能か（指示の訂正や変更は上書きとみなす） |
 
 User input can be in any language supported by `d1:2b` (current test cases cover Japanese and English; broader multilingual accuracy has not been independently verified).
 Each score is the raw `noul` value returned by `/v1/systemone`.
@@ -218,7 +218,7 @@ If the latest transcript `USER_INPUT` matches the prompt and already has a `PLAN
     "injectSteps": [
       {
         "errorMessage": {
-          "userMessage": "- Specify the target...\n\nIntent clarity ...\nThreshold ..."
+          "userMessage": "- 対象の指定、選択肢の選択、または期待する結果を具体化してください。\n\n意図の明確さ ...\nThreshold ..."
         }
       }
     ]

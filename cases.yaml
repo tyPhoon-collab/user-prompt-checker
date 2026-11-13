@@ -70,7 +70,7 @@
   prompt: ログイン画面をいい感じにして。
   expected:
     intent_clear: true
-    context_sufficient: false
+    context_sufficient: true
     consistent: true
 
 - id: conflicting_colors
@@ -112,7 +112,7 @@
   prompt: Goで最小限のCLIとテストケースを作成して。
   expected:
     intent_clear: true
-    context_sufficient: false
+    context_sufficient: true
     consistent: true
 
 - id: injection_missing_reference
@@ -393,3 +393,59 @@
     intent_clear: true
     context_sufficient: true
     consistent: true
+
+# ------------------------------------------------------------------------------
+# Phase 5: Real-world Conversational Follow-ups (Captured from Session History)
+# Short follow-ups, confirmations, and decisions grounded in prior conversation.
+# ------------------------------------------------------------------------------
+
+- id: conversational_direction_decision
+  history:
+    - role: user
+      content: rubric.jsonについて、日本語にしたいが可能か？
+    - role: assistant
+      content: 技術的には可能です。日本語化を進めますか、それとも先に評価基準の精査を行いますか？
+  prompt: |
+    一旦、日本語にしよう。
+    わたしが保守できない。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: conversational_step_execution
+  history:
+    - role: user
+      content: エラーハンドリングの改善案をいくつか挙げて。
+    - role: assistant
+      content: "1. カスタムエラー型の導入\n2. 呼び出し元へのエラーラップ伝播\nどちらから進めますか？"
+  prompt: いいね。1から対応してください。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: conversational_commit_simple
+  history:
+    - role: user
+      content: テストが通るように修正して。
+    - role: assistant
+      content: 修正が完了し、すべてのテストがパスしました。
+  prompt: コミットしてください。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: conversational_keep_decision
+  history:
+    - role: user
+      content: 不要な古い設定ファイルを削除すべきか確認して。
+    - role: assistant
+      content: 古い設定ファイルは後方互換性のために参照されている箇所があります。残しますか？
+  prompt: 残してよいです
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+

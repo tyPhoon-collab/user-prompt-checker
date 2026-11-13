@@ -1,29 +1,29 @@
 {
   "intent_clear": {
-    "label": "Intent clarity",
-    "question": "Does user_prompt express an action, question, or conversational reply rather than a bare noun phrase or an ungrounded continuation?",
+    "label": "意図の明確さ",
+    "question": "単なる名詞句や挨拶ではなく、行動の要求、質問、または会話への返答を表しているか？",
     "criteria": {
-      "true": "user_prompt asks any question (including casual or elliptical questions like 'was that requested?' or 'why is it in X?'), requests an action (including 'fix it', 'commit', 'finish', or 'make it nice'), authorizes next steps or commits following prior discussion, selects an option, or proposes a topic to discuss.",
-      "false": "user_prompt is only a bare noun phrase with no verb or question (e.g., 'The login submit button.'), a bare greeting ('hi'), or an approval phrase ('proceed with that') when conversation is empty."
+      "true": "作業の指示、質問、方針の選択、または会話への返答・承認（「了解」「LGTM」等）である。",
+      "false": "動詞のない単なる名詞句（例:「ログインの送信ボタン」）、または単なる挨拶（例:「こんにちは」）である。"
     },
-    "clarification": "State what action you want taken or what question you are asking."
+    "clarification": "行いたい操作や確認したい質問を明示してください。"
   },
   "context_sufficient": {
-    "label": "Context sufficiency",
-    "question": "Can the assistant respond or act on user_prompt using conversation or attached images without guessing missing targets, unstated requirements, or unchosen options?",
+    "label": "文脈の充足度",
+    "question": "プロンプト単体または直前の会話を踏まえて、対象を特定できるか？",
     "criteria": {
-      "true": "The subject is named in user_prompt, recoverable from conversation, or provided by attached images (such as 'fix this error' or UI feedback when an image is attached), and the desired action or question is concrete enough to proceed. Typos, open-ended brainstorming, and questions about the assistant's prior reply are acceptable.",
-      "false": "A pronoun or reference ('fix it', 'proceed with that') has no antecedent in conversation or attached images, the assistant offered multiple options and the user did not pick one, the user asks to create a PoC or project folder without any specification of what to build in user_prompt or conversation, or the request only asks to make something 'nice' without criteria."
+      "true": "対象がプロンプト内で示されているか、直前の会話から特定できる。会話の流れに沿った短い返答も含む。",
+      "false": "会話に前提がない指示語（例:「それを直して」）、または会話がない状態での対象不明な操作（例:「コミット」）である。"
     },
-    "clarification": "Specify the target, choose an option, or clarify the expected outcome."
+    "clarification": "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
   },
   "consistent": {
-    "label": "Consistency",
-    "question": "Are the active requirements in user_prompt and conversation logically compatible? An explicit correction supersedes an older requirement.",
+    "label": "整合性",
+    "question": "プロンプトと会話内の要求が論理的に両立可能か？（変更や取り消しは上書きとみなす）",
     "criteria": {
-      "true": "No active requirements contradict each other. An explicit correction ('cancel red, use blue instead') is consistent. Missing details or questions are not contradictions.",
-            "false": "Two active requirements cannot both be satisfied simultaneously (e.g., requiring the same element to be solid red only and solid blue only at the same time), and neither supersedes the other."
+      "true": "要求同士が矛盾していない。指示の変更、取り消し、元に戻す指示、方針選択は整合している。詳細の不足や質問も矛盾ではない。",
+      "false": "取り消しや優先度の指定がないまま、同時に成立しない相反する要件（例:「同時に赤のみ、かつ青のみ」）を求めている。"
     },
-    "clarification": "Resolve the conflicting requirements or state which condition takes priority."
+    "clarification": "矛盾する条件を解消するか、どちらを優先するか指定してください。"
   }
 }

@@ -259,7 +259,7 @@ func TestBlockReturnsTerminateAndErrorMessage(t *testing.T) {
 	if resp.TerminationBehavior != "terminate" {
 		t.Fatalf("expected terminate, got %q", resp.TerminationBehavior)
 	}
-	if len(resp.InjectSteps) != 1 || !strings.Contains(resp.InjectSteps[0].ErrorMessage.UserMessage, "Context sufficiency") {
+	if len(resp.InjectSteps) != 1 || !strings.Contains(resp.InjectSteps[0].ErrorMessage.UserMessage, "文脈の充足度") {
 		t.Fatalf("unexpected injectSteps: %+v", resp.InjectSteps)
 	}
 }

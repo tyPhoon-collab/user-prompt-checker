@@ -20,11 +20,12 @@ func TestFormatBlockReasonIsPlainTextWithClarificationsAndMetrics(t *testing.T) 
 		"consistent":         0.92,
 	}, rubric, 0.6)
 	want := strings.Join([]string{
-		"- Specify the target, choose an option, or clarify the expected outcome.",
+		"プロンプトを更新してください",
+		"  - 対象の指定、選択肢の選択、または期待する結果を具体化してください。",
 		"",
-		"Intent clarity       0.850",
-		"Context sufficiency  0.250",
-		"Consistency          0.920",
+		"意図の明確さ         0.850",
+		"文脈の充足度         0.250",
+		"整合性               0.920",
 		"",
 		"Threshold            0.600",
 	}, "\n")
