@@ -3,6 +3,8 @@ package checker
 import (
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -154,5 +156,30 @@ func TestCommandOrSkillBypassesModelCall(t *testing.T) {
 		if score != 1.0 {
 			t.Errorf("expected score 1.0 for %s, got %v", k, score)
 		}
+	}
+}
+
+func TestLoadRubricSupportsJSONAndRejectsUnknownFields(t *testing.T) {
+	dir := t.TempDir()
+	jsonPath := filepath.Join(dir, "rubric.json")
+	validJSON := `{
+		"intent_clear": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"},
+		"context_sufficient": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"},
+		"consistent": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"}
+	}`
+	if err := os.WriteFile(jsonPath, []byte(validJSON), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRubric(jsonPath); err != nil {
+		t.Fatalf("expected valid JSON rubric to load, got: %v", err)
+	}
+
+	typoPath := filepath.Join(dir, "typo.yaml")
+	typoYAML := "intent_clear:\n  labl: typo\n  question: q\n  criteria:\n    \"true\": t\n    \"false\": f\n  clarification: c\n"
+	if err := os.WriteFile(typoPath, []byte(typoYAML), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRubric(typoPath); err == nil {
+		t.Fatal("expected error for unknown field in YAML rubric")
 	}
 }

@@ -26,7 +26,7 @@ import (
 type cli struct {
 	Model     string   `help:"Ollama model name." default:"d1:2b"`
 	URL       string   `help:"Ollama base URL." default:"http://localhost:11434"`
-	Rubric    string   `help:"Path to custom rubric.json (defaults to embedded rubric)."`
+	Rubric    string   `help:"Path to custom rubric YAML or JSON (defaults to embedded rubric)."`
 	Threshold float64  `help:"Minimum score threshold in [0, 1]." default:"0.6"`
 	Timeout   *float64 `help:"HTTP timeout in seconds (default: 120 for check/evaluate, 10 for hook)."`
 

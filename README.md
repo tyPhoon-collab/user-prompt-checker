@@ -124,7 +124,7 @@ flowchart TD
 
 ## Evaluation Criteria
 
-`internal/checker/rubric.json` (embedded by default, overrideable via `--rubric`) defines three independent criteria evaluated in Japanese:
+`internal/checker/rubric.yaml` (embedded by default, overrideable via `--rubric` in YAML or JSON) defines three independent criteria evaluated in Japanese:
 
 | Criterion | What it checks |
 | --- | --- |

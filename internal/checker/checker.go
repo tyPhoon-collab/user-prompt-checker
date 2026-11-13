@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"os"
@@ -13,10 +14,12 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-//go:embed rubric.json
-var defaultRubricJSON []byte
+//go:embed rubric.yaml
+var defaultRubricYAML []byte
 
 var aspectOrder = []string{"intent_clear", "context_sufficient", "consistent"}
 
@@ -27,10 +30,10 @@ const instructionPrefix = "conversationを文脈としてuser_promptのみを評
 	"コーディングアシスタント自身が調査できる技術的詳細を求めないでください。"
 
 type Criterion struct {
-	Label         string            `json:"label"`
-	Question      string            `json:"question"`
-	Criteria      map[string]string `json:"criteria"`
-	Clarification string            `json:"clarification"`
+	Label         string            `json:"label" yaml:"label"`
+	Question      string            `json:"question" yaml:"question"`
+	Criteria      map[string]string `json:"criteria" yaml:"criteria"`
+	Clarification string            `json:"clarification" yaml:"clarification"`
 }
 
 type Rubric map[string]Criterion
@@ -88,7 +91,7 @@ func OrderedKeys(rubric Rubric) []string {
 }
 
 func LoadRubric(path string) (Rubric, error) {
-	data := defaultRubricJSON
+	data := defaultRubricYAML
 	if path != "" {
 		var err error
 		data, err = os.ReadFile(path)
@@ -97,7 +100,9 @@ func LoadRubric(path string) (Rubric, error) {
 		}
 	}
 	var rubric Rubric
-	if err := json.Unmarshal(data, &rubric); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&rubric); err != nil && !errors.Is(err, io.EOF) {
 		return nil, err
 	}
 	if len(rubric) != 3 {
