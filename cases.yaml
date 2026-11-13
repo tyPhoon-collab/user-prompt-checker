@@ -73,12 +73,33 @@
     context_sufficient: true
     consistent: true
 
-- id: conflicting_colors
-  prompt: ログイン画面の送信ボタンの通常時の背景色を、単色の赤だけにして。同じ通常時の背景色を単色の青だけにして。両方の条件を同時に満たして。
+- id: contradictory_constraint_pair
+  prompt: テストは一切追加しないで。同時に、単体テストを必ず追加して。
   expected:
     intent_clear: true
     context_sufficient: true
     consistent: false
+
+- id: question_only_ja
+  prompt: エラー時のリトライ処理はどうなっている？
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: problem_and_fix_request
+  prompt: 現状、CLIでタイムアウト時間を指定できないよね。指定できるようにしたい。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: negative_constraint_with_action
+  prompt: E2Eテストを実行して、ステージング環境では管理者ユーザーだけ許可して。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
 
 - id: harmless_typo
   prompt: "ログイン画面の送信ボタンの背景色を #0066cc に変吏して。"
@@ -448,4 +469,16 @@
     intent_clear: true
     context_sufficient: true
     consistent: true
+
+- id: abrupt_topic_jump
+  history:
+    - role: user
+      content: ログイン画面の送信ボタンの色を #0066cc にして。
+    - role: assistant
+      content: 送信ボタンの背景色を #0066cc に変更しますか？それとも既存のテーマカラーに合わせますか？
+  prompt: データベースのマイグレーションを実行して。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: false
 

@@ -25,7 +25,7 @@ func TestFormatBlockReasonIsPlainTextWithClarificationsAndMetrics(t *testing.T) 
 		"",
 		"意図の明確さ         0.850",
 		"文脈の充足度         0.250",
-		"整合性               0.920",
+		"指示の整合性         0.920",
 		"",
 		"Threshold            0.600",
 	}, "\n")
