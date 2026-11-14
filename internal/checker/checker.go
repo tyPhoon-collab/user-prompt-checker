@@ -161,7 +161,7 @@ func ExtractScores(raw map[string]any, rubric Rubric) (map[string]float64, error
 	return scores, nil
 }
 
-var commandOrSkillTokenRegex = regexp.MustCompile(`^[/$][\w-]+$`)
+var commandOrSkillTokenRegex = regexp.MustCompile(`^[/$][\w-]+(?::[\w-]+)*$`)
 
 func IsCommandOrSkillOnly(prompt string) bool {
 	fields := strings.Fields(strings.TrimSpace(prompt))
