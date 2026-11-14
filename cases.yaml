@@ -188,6 +188,44 @@
     context_sufficient: true
     consistent: true
 
+- id: uuid_reference_investigation
+  prompt: |
+    ネットワーク接続がタイムアウトする原因を切り分けたい。
+
+    ワークスペース 12345678-1234-5678-9abc-def012345678 にログを開いているので調査してください。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: at_bracket_file_reference
+  prompt: "@[config/rubric.json] を yaml 形式に移行するか検討中です。壁打ちしてください。"
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: at_file_reference
+  prompt: "@internal/handler/auth.go のエラーハンドリングを整理したい。方針を相談させて。"
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: symbol_reference_question
+  prompt: 実装にある LegacySessionManager って何をするクラス？
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: proper_noun_external_context
+  prompt: AcmeBoard のダッシュボードを開いているので、表示崩れの原因を調査して。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
 # ------------------------------------------------------------------------------
 # Phase 2: Alignment (Exploration, consultation & option selection with history)
 # Brief replies and clarifications are valid using prior context.
@@ -481,4 +519,28 @@
     intent_clear: true
     context_sufficient: true
     consistent: false
+
+- id: domain_term_with_history
+  history:
+    - role: user
+      content: ログイン処理のリファクタリングを進めて。
+    - role: assistant
+      content: 認証モジュールの整理を完了しました。
+  prompt: 再度、code-review をお願い。
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
+
+- id: domain_term_policy_question
+  history:
+    - role: user
+      content: 文字コードの正規化仕様を整理したい。
+    - role: assistant
+      content: どの規格を基準にするか選択肢をまとめますか？
+  prompt: JISベースで考えたいが、どうか？
+  expected:
+    intent_clear: true
+    context_sufficient: true
+    consistent: true
 
