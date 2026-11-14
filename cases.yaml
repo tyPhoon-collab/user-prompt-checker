@@ -544,3 +544,23 @@
     context_sufficient: true
     consistent: true
 
+- id: incomplete_filler_with_history
+  history:
+    - role: user
+      content: 設定ファイルの不要な項目を整理して。
+    - role: assistant
+      content: 古い項目を分類して一覧にまとめました。
+  prompt: あと、
+  expected:
+    intent_clear: false
+    context_sufficient: false
+    consistent: true
+
+- id: incomplete_filler_standalone
+  history: []
+  prompt: ところで、
+  expected:
+    intent_clear: false
+    context_sufficient: false
+    consistent: true
+
