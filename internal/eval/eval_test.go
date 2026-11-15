@@ -41,8 +41,21 @@ func TestRunDistinguishesIdenticalPrompts(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout bytes.Buffer
-	if err := Run(casesPath, outputPath, rubric, checker.Config{Threshold: 0.6}, &stdout, nil); err != nil {
+	cwd, err := os.Getwd()
+	if err != nil {
 		t.Fatal(err)
+	}
+	relativeOutput, err := filepath.Rel(cwd, outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(casesPath, relativeOutput, rubric, checker.Config{Threshold: 0.6}, &stdout, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{outputPath, filepath.Join(dir, "results.html")} {
+		if !strings.Contains(stdout.String(), "Saved: "+path+"\n") {
+			t.Errorf("missing absolute saved path %q in output", path)
+		}
 	}
 	data, err := os.ReadFile(outputPath)
 	if err != nil {

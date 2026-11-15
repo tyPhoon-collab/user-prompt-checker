@@ -1,7 +1,60 @@
 {
-  "created_at": "2026-11-14T17:10:00.957646Z",
+  "created_at": "2026-11-15T06:32:56.923682Z",
   "model": "d1:2b",
+  "url": "http://localhost:11434",
+  "rubric": {
+    "consistent": {
+      "label": "指示の整合性",
+      "question": "user_promptの指示は矛盾せず、直前の会話がある場合はその流れとも整合しているか？",
+      "criteria": {
+        "false": "同時に満たせない相反する指示を出している、または会話の作業と全く無関係な別タスクへ前置きなく急に切り替わっている。",
+        "true": "指示に矛盾がなく、会話への確認・質問・具体化・方針変更の指示も整合している。複数の手順、固有名詞・ファイルパス・UUID・ID・識別子等の参照指定を伴う指示や質問も矛盾がなければ問題ない。"
+      },
+      "clarification": "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
+    },
+    "context_sufficient": {
+      "label": "文脈の充足度",
+      "question": "user_prompt単体、または会話の流れを踏まえて、対象を特定できるか？",
+      "criteria": {
+        "false": "会話に文脈がない指示語（例:「それを直して」）、または会話がない状態での対象不明な操作（例:「コミット」）である。",
+        "true": "意図の対象が特定できる。選択肢が提供されていて、なにを選ぶか明確な場合や、エージェントがプロジェクトや環境から特定できそうな場合も含む。"
+      },
+      "clarification": "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
+    },
+    "intent_clear": {
+      "label": "意図の明確さ",
+      "question": "単なる名詞句や挨拶、言い差しではなく、行動の要求、質問、または会話への返答を表しているか？",
+      "criteria": {
+        "false": "動詞のない単なる名詞句（例:「ログインの送信ボタン」）、単なる挨拶、または接続詞・間投詞だけで内容が続いていない言い差し・未完結文である。",
+        "true": "作業の指示、質問、方針の選択、または会話への返答・承認（「了解」「LGTM」等）である。"
+      },
+      "clarification": "行いたい操作や確認したい質問を明示してください。"
+    }
+  },
   "note": "Expected values are provisional hypotheses prior to independent human review. Execution order is fixed.",
+  "summary": {
+    "count": 58,
+    "threshold": 0.6,
+    "gate_matches": 54,
+    "false_blocks": [
+      "26: @[config/rubric.json] を yaml 形…",
+      "38: 個人情報は含まれていないよね？"
+    ],
+    "false_passes": [
+      "7: ログイン画面の送信ボタン。",
+      "31: それで進めて。"
+    ],
+    "aspect_matches": {
+      "consistent": 56,
+      "context_sufficient": 53,
+      "intent_clear": 54
+    },
+    "latency_ms": {
+      "first": 666.228,
+      "max": 666.228,
+      "median": 580.7545
+    }
+  },
   "results": [
     {
       "prompt": "ログイン画面の送信ボタンの背景色を #0066cc に変更して。",
@@ -14,7 +67,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 659.207,
+      "elapsed_ms": 666.228,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -60,7 +113,7 @@
       "clarifications": [
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 586.397,
+      "elapsed_ms": 553.786,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -108,7 +161,7 @@
         "行いたい操作や確認したい質問を明示してください。",
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 570.202,
+      "elapsed_ms": 551.896,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -150,7 +203,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 655.707,
+      "elapsed_ms": 596.29,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -192,7 +245,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 608.7,
+      "elapsed_ms": 596.165,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -238,7 +291,7 @@
       "clarifications": [
         "行いたい操作や確認したい質問を明示してください。"
       ],
-      "elapsed_ms": 642.348,
+      "elapsed_ms": 584.736,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -280,7 +333,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 595.544,
+      "elapsed_ms": 546.228,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -322,7 +375,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 599.028,
+      "elapsed_ms": 547.484,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -368,7 +421,7 @@
       "clarifications": [
         "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
       ],
-      "elapsed_ms": 648.173,
+      "elapsed_ms": 587.916,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -410,7 +463,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 641.788,
+      "elapsed_ms": 588.818,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -452,7 +505,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 658.729,
+      "elapsed_ms": 580.961,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -494,7 +547,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 608.741,
+      "elapsed_ms": 582.202,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -536,7 +589,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 623.608,
+      "elapsed_ms": 580.303,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -582,7 +635,7 @@
       "clarifications": [
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 592.847,
+      "elapsed_ms": 609.781,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -624,7 +677,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 622.253,
+      "elapsed_ms": 596.701,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -666,7 +719,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 647.676,
+      "elapsed_ms": 593.846,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -708,7 +761,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 631.948,
+      "elapsed_ms": 620.718,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -756,7 +809,7 @@
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。",
         "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
       ],
-      "elapsed_ms": 628.287,
+      "elapsed_ms": 573.521,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -798,7 +851,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 645.908,
+      "elapsed_ms": 574.371,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -844,7 +897,7 @@
       "clarifications": [
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 569.642,
+      "elapsed_ms": 535.856,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -886,7 +939,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 626.19,
+      "elapsed_ms": 588.586,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -932,7 +985,7 @@
       "clarifications": [
         "行いたい操作や確認したい質問を明示してください。"
       ],
-      "elapsed_ms": 602.264,
+      "elapsed_ms": 539.68,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -980,7 +1033,7 @@
         "行いたい操作や確認したい質問を明示してください。",
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 610.129,
+      "elapsed_ms": 534.423,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1022,7 +1075,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 632.56,
+      "elapsed_ms": 594.894,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1064,7 +1117,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 660.431,
+      "elapsed_ms": 587.587,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1110,7 +1163,7 @@
       "clarifications": [
         "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
       ],
-      "elapsed_ms": 598.539,
+      "elapsed_ms": 571.884,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1152,7 +1205,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 640.19,
+      "elapsed_ms": 570.231,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1194,7 +1247,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 651.824,
+      "elapsed_ms": 582.751,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1236,7 +1289,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 647.751,
+      "elapsed_ms": 580.548,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1287,7 +1340,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 677.751,
+      "elapsed_ms": 622.405,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1334,7 +1387,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 630.302,
+      "elapsed_ms": 579.172,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1381,7 +1434,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 613.332,
+      "elapsed_ms": 581.144,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1428,7 +1481,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 651.009,
+      "elapsed_ms": 580.108,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1479,7 +1532,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 643.526,
+      "elapsed_ms": 573.251,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1530,7 +1583,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 707.324,
+      "elapsed_ms": 615.422,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1581,7 +1634,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 690.789,
+      "elapsed_ms": 619.216,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1628,7 +1681,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 609.104,
+      "elapsed_ms": 569.747,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1679,7 +1732,7 @@
       "clarifications": [
         "行いたい操作や確認したい質問を明示してください。"
       ],
-      "elapsed_ms": 682.058,
+      "elapsed_ms": 575.016,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1730,7 +1783,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 682.56,
+      "elapsed_ms": 618.48,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1781,7 +1834,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 635.274,
+      "elapsed_ms": 575.403,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1828,7 +1881,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 625.925,
+      "elapsed_ms": 588.807,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1875,7 +1928,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 634.373,
+      "elapsed_ms": 583.814,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1922,7 +1975,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 673.083,
+      "elapsed_ms": 580.19,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -1969,7 +2022,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 610.485,
+      "elapsed_ms": 579.004,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2001,8 +2054,8 @@
       }
     },
     {
-      "prompt": "",
-      "history": null,
+      "prompt": "/test",
+      "history": [],
       "scores": {
         "consistent": 1,
         "context_sufficient": 1,
@@ -2022,8 +2075,8 @@
       }
     },
     {
-      "prompt": "",
-      "history": null,
+      "prompt": "$compact $before-after",
+      "history": [],
       "scores": {
         "consistent": 1,
         "context_sufficient": 1,
@@ -2059,7 +2112,7 @@
         "行いたい操作や確認したい質問を明示してください。",
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 634.322,
+      "elapsed_ms": 588.767,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2101,7 +2154,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 645.768,
+      "elapsed_ms": 598.029,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2143,7 +2196,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 640.185,
+      "elapsed_ms": 571.504,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2194,7 +2247,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 688.358,
+      "elapsed_ms": 630.685,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2245,7 +2298,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 673.527,
+      "elapsed_ms": 621.909,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2296,7 +2349,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 669.144,
+      "elapsed_ms": 589.85,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2347,7 +2400,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 672.506,
+      "elapsed_ms": 631.857,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2402,7 +2455,7 @@
       "clarifications": [
         "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
       ],
-      "elapsed_ms": 668.985,
+      "elapsed_ms": 576.74,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2453,7 +2506,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 613.417,
+      "elapsed_ms": 575.671,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2504,7 +2557,7 @@
       "pass": true,
       "failed": [],
       "clarifications": [],
-      "elapsed_ms": 676.948,
+      "elapsed_ms": 577.454,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2559,7 +2612,7 @@
       "clarifications": [
         "行いたい操作や確認したい質問を明示してください。"
       ],
-      "elapsed_ms": 606.691,
+      "elapsed_ms": 572.069,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2607,7 +2660,7 @@
         "行いたい操作や確認したい質問を明示してください。",
         "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
       ],
-      "elapsed_ms": 635.737,
+      "elapsed_ms": 532.565,
       "raw_response": {
         "answers": {
           "consistent": {
@@ -2638,58 +2691,5 @@
         "intent_clear": false
       }
     }
-  ],
-  "rubric": {
-    "consistent": {
-      "label": "指示の整合性",
-      "question": "user_promptの指示は矛盾せず、直前の会話がある場合はその流れとも整合しているか？",
-      "criteria": {
-        "false": "同時に満たせない相反する指示を出している、または会話の作業と全く無関係な別タスクへ前置きなく急に切り替わっている。",
-        "true": "指示に矛盾がなく、会話への確認・質問・具体化・方針変更の指示も整合している。複数の手順、固有名詞・ファイルパス・UUID・ID・識別子等の参照指定を伴う指示や質問も矛盾がなければ問題ない。"
-      },
-      "clarification": "矛盾する条件や話題の飛躍を解消し、意図や優先度を明確にしてください。"
-    },
-    "context_sufficient": {
-      "label": "文脈の充足度",
-      "question": "user_prompt単体、または会話の流れを踏まえて、対象を特定できるか？",
-      "criteria": {
-        "false": "会話に文脈がない指示語（例:「それを直して」）、または会話がない状態での対象不明な操作（例:「コミット」）である。",
-        "true": "意図の対象が特定できる。選択肢が提供されていて、なにを選ぶか明確な場合や、エージェントがプロジェクトや環境から特定できそうな場合も含む。"
-      },
-      "clarification": "対象の指定、選択肢の選択、または期待する結果を具体化してください。"
-    },
-    "intent_clear": {
-      "label": "意図の明確さ",
-      "question": "単なる名詞句や挨拶、言い差しではなく、行動の要求、質問、または会話への返答を表しているか？",
-      "criteria": {
-        "false": "動詞のない単なる名詞句（例:「ログインの送信ボタン」）、単なる挨拶、または接続詞・間投詞だけで内容が続いていない言い差し・未完結文である。",
-        "true": "作業の指示、質問、方針の選択、または会話への返答・承認（「了解」「LGTM」等）である。"
-      },
-      "clarification": "行いたい操作や確認したい質問を明示してください。"
-    }
-  },
-  "summary": {
-    "count": 58,
-    "threshold": 0.6,
-    "gate_matches": 54,
-    "false_blocks": [
-      "26: @[config/rubric.json] を yaml 形…",
-      "38: 個人情報は含まれていないよね？"
-    ],
-    "false_passes": [
-      "7: ログイン画面の送信ボタン。",
-      "31: それで進めて。"
-    ],
-    "aspect_matches": {
-      "consistent": 56,
-      "context_sufficient": 53,
-      "intent_clear": 54
-    },
-    "latency_ms": {
-      "first": 659.207,
-      "max": 707.324,
-      "median": 635.5055
-    }
-  },
-  "url": "http://localhost:11434"
+  ]
 }

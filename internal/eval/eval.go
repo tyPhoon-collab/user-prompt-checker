@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -38,6 +39,16 @@ type Summary struct {
 	FalsePasses   []string           `json:"false_passes"`
 	AspectMatches map[string]int     `json:"aspect_matches"`
 	LatencyMS     map[string]float64 `json:"latency_ms"`
+}
+
+type report struct {
+	CreatedAt string         `json:"created_at"`
+	Model     string         `json:"model"`
+	URL       string         `json:"url"`
+	Rubric    checker.Rubric `json:"rubric"`
+	Note      string         `json:"note"`
+	Summary   Summary        `json:"summary"`
+	Results   []Row          `json:"results"`
 }
 
 func caseLabel(number int, prompt string) string {
@@ -101,6 +112,10 @@ func Summarize(rows []Row, rubric checker.Rubric, threshold float64) Summary {
 }
 
 func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config, stdout io.Writer, client *http.Client) error {
+	outputPath, err := filepath.Abs(outputPath)
+	if err != nil {
+		return err
+	}
 	b, err := os.ReadFile(casesPath)
 	if err != nil {
 		return err
@@ -172,24 +187,33 @@ func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config
 	}
 
 	summary := Summarize(rows, rubric, cfg.Threshold)
-	report := map[string]any{
-		"created_at": time.Now().UTC().Format(time.RFC3339Nano),
-		"model":      cfg.Model,
-		"url":        cfg.URL,
-		"rubric":     rubric,
-		"note":       "Expected values are provisional hypotheses prior to independent human review. Execution order is fixed.",
-		"summary":    summary,
-		"results":    rows,
+	report := report{
+		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Model:     cfg.Model,
+		URL:       cfg.URL,
+		Rubric:    rubric,
+		Note:      "Expected values are provisional hypotheses prior to independent human review. Execution order is fixed.",
+		Summary:   summary,
+		Results:   rows,
 	}
 	reportBytes, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	htmlBytes, err := renderHTML(report)
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(outputPath, append(reportBytes, '\n'), 0o644); err != nil {
 		return err
 	}
+	htmlPath := strings.TrimSuffix(outputPath, ".json") + ".html"
+	if err := os.WriteFile(htmlPath, htmlBytes, 0o644); err != nil {
+		return err
+	}
 	sumBytes, _ := json.MarshalIndent(summary, "", "  ")
 	fmt.Fprintln(stdout, string(sumBytes))
 	fmt.Fprintf(stdout, "Saved: %s\n", outputPath)
+	fmt.Fprintf(stdout, "Saved: %s\n", htmlPath)
 	return nil
 }

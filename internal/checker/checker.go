@@ -196,6 +196,8 @@ func Check(prompt string, history []Message, rubric Rubric, cfg Config, client *
 			scores[k] = 1.0
 		}
 		return Result{
+			Prompt:         prompt,
+			History:        history,
 			Scores:         scores,
 			Pass:           true,
 			Failed:         []string{},

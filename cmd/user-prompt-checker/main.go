@@ -45,7 +45,7 @@ type checkCmd struct {
 
 type evaluateCmd struct {
 	Cases  string `help:"Path to evaluation cases YAML or JSON." default:"cases.yaml"`
-	Output string `help:"Path to write results JSON." default:"results.json"`
+	Output string `help:"Path to write results JSON (also writes a sibling HTML report)." default:"results.json"`
 }
 
 type hookCmd struct {

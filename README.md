@@ -51,13 +51,16 @@ Check the `pass` field in the JSON output to determine whether the prompt passed
 New hook history records keep conversation and turn identifiers separately and record the transcript byte boundary at evaluation time.
 The gain dashboard reads context only within that boundary. Older records remain available for score analysis, but their conversation context is omitted because the original boundary is unknown.
 
-`evaluate` runs all cases in `cases.yaml` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json`.
+`evaluate` runs all cases in `cases.yaml` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json` and a standalone HTML view to `results.html`.
+Open the HTML file directly in a browser. It initially shows cases whose pass/block decision or individual criterion differs from the expected value; switch to all cases or expand a case to inspect the full prompt, history, and clarification questions. CSS and JavaScript are embedded, with no external requests.
 Cases need no `id`. Terminal output, errors, and report `case` fields identify each case by its one-based position and the first 30 characters of its prompt, with whitespace collapsed and `…` appended when truncated. Summary `false_blocks` and `false_passes` use the same labels.
 Specify `--output <path>` to save to another file or `--threshold <float>` to test a different threshold:
 
 ```sh
 ./user-prompt-checker --threshold 0.7 evaluate --output results-070.json
 ```
+
+The HTML path replaces a trailing `.json` with `.html` (`results-070.html` above); for other output names, `.html` is appended. Saved report paths are printed as absolute paths. Failure to write either report returns an error.
 
 `history.json` is a chronological array of prior messages (excluding the current prompt):
 

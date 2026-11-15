@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>プロンプト評価レポート</title>
+<style>
+:root { color-scheme: light; --ink: #20302c; --muted: #52635c; --line: #cbd3cb; --paper: #f5f6f1; --accent: #245f4c; --error: #922e29; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.7 system-ui, sans-serif; }
+main { max-width: 1060px; margin: auto; padding: 48px 28px 80px; }
+h1 { font-size: 28px; margin: 4px 0 8px; letter-spacing: -.02em; }
+h2 { font-size: 18px; margin: 0; }
+h3 { font-size: 15px; margin: 24px 0 8px; }
+p { margin: 8px 0; }
+.meta, .note { color: var(--muted); }
+.meta { font-size: 13px; overflow-wrap: anywhere; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid var(--line); margin: 28px 0 32px; padding: 18px 0; gap: 20px; }
+dt { font-size: 13px; color: var(--muted); }
+dd { margin: 0; font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+select { font: inherit; color: var(--ink); background: white; padding: 8px 12px; border: 1px solid var(--muted); border-radius: 4px; }
+.note { font-size: 13px; margin: 12px 0 20px; }
+.case { background: white; border: 1px solid var(--line); margin-top: 16px; padding: 20px 24px; }
+.case[hidden], #empty[hidden] { display: none; }
+.case-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+.case-title { font-size: 16px; font-weight: 650; overflow-wrap: anywhere; }
+.verdict { font-size: 13px; font-weight: 650; }
+.error { color: var(--error); }
+.ok { color: var(--accent); }
+.table-wrap { overflow-x: auto; margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-weight: 500; }
+th:first-child, td:first-child { padding-left: 0; }
+td { font-variant-numeric: tabular-nums; }
+tr.aspect-error { background: #fff3ed; }
+tr.aspect-error td:last-child { color: var(--error); font-weight: 650; }
+details { margin-top: 18px; }
+summary { cursor: pointer; color: var(--accent); width: fit-content; padding: 4px 0; text-underline-offset: 4px; }
+summary:hover { text-decoration: underline; }
+pre { margin: 8px 0; padding: 14px 16px; background: var(--paper); border-left: 2px solid var(--line); font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.role { color: var(--muted); font-size: 12px; margin-top: 14px; }
+#empty { padding: 28px 0; color: var(--muted); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+::selection { color: white; background: var(--accent); }
+@media (max-width: 600px) {
+  main { padding: 28px 16px 48px; }
+  h1 { font-size: 24px; }
+  .metrics { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .toolbar { align-items: stretch; flex-direction: column; gap: 8px; }
+  .case { padding: 16px; }
+}
+</style>
+<main>
+  <header>
+    <h1>プロンプト評価レポート</h1>
+    <p class="meta">{{.Model}} · 閾値 {{printf "%.2f" .Summary.Threshold}} · <time>{{.CreatedAt}}</time></p>
+  </header>
+  <dl class="metrics">
+    <div><dt>全ケース</dt><dd>{{.Summary.Count}}</dd></div>
+    <div><dt>判定が期待値と一致</dt><dd>{{.Summary.GateMatches}} / {{.Summary.Count}}</dd></div>
+    <div><dt>誤ブロック</dt><dd>{{len .Summary.FalseBlocks}}</dd></div>
+    <div><dt>見逃し</dt><dd>{{len .Summary.FalsePasses}}</dd></div>
+  </dl>
+  <section aria-labelledby="cases-heading">
+    <div class="toolbar">
+      <h2 id="cases-heading">ケースを確認</h2>
+      <label>表示 <select id="filter">
+        <option value="mismatch" selected>不一致のみ（{{mismatchCount}}件）</option>
+        <option value="all">全件（{{.Summary.Count}}件）</option>
+      </select></label>
+    </div>
+    <p class="note">通過・ブロックの判定、または観点別の期待値が一致しないケースを表示。期待値は暫定の仮説であり、正解を保証するものではない。</p>
+    <noscript><style>.case[hidden] { display: block; }</style><p>JavaScriptが無効なため、全ケースを表示している。</p></noscript>
+    <p id="empty" role="status" {{if mismatchCount}}hidden{{end}}>期待値と異なるケースはない。「全件」に切り替えると、すべての結果を確認できる。</p>
+    {{range .Results}}
+    {{$row := .}}{{$expectedPass := expectedPass .Expected}}{{$mismatch := mismatch .}}
+    <article class="case" data-mismatch="{{$mismatch}}" {{if not $mismatch}}hidden{{end}}>
+      <div class="case-header">
+        <div class="case-title">{{.Case}}</div>
+        <span class="verdict {{if $mismatch}}error{{else}}ok{{end}}">{{if ne .Pass $expectedPass}}{{if .Pass}}見逃し{{else}}誤ブロック{{end}}{{else}}{{if $mismatch}}判定一致・観点不一致{{else}}期待値と一致{{end}}{{end}}</span>
+      </div>
+      <p class="meta">期待: {{if $expectedPass}}通過{{else}}ブロック{{end}} · 実際: {{if .Pass}}通過{{else}}ブロック{{end}} · {{printf "%.0f" .ElapsedMS}} ms</p>
+      <div class="table-wrap" tabindex="0" role="group" aria-label="観点別スコア（横にスクロール可能）">
+        <table aria-label="観点別の期待値とスコア">
+          <thead><tr><th scope="col">観点</th><th scope="col">期待</th><th scope="col">スコア</th><th scope="col">実際</th><th scope="col">一致</th></tr></thead>
+          <tbody>{{range keys}}
+            {{$expected := index $row.Expected .}}{{$score := index $row.Scores .}}{{$actual := ge $score $.Summary.Threshold}}
+            <tr {{if ne $expected $actual}}class="aspect-error"{{end}}>
+              <td>{{with (index $.Rubric .).Label}}{{.}}{{else}}{{.}}{{end}}</td>
+              <td>{{if $expected}}通過{{else}}ブロック{{end}}</td>
+              <td>{{printf "%.3f" $score}}</td>
+              <td>{{if $actual}}通過{{else}}ブロック{{end}}</td>
+              <td>{{if eq $expected $actual}}一致{{else}}不一致{{end}}</td>
+            </tr>
+          {{end}}</tbody>
+        </table>
+      </div>
+      <details>
+        <summary>プロンプトと会話履歴を開く</summary>
+        <h3>プロンプト</h3>
+        <pre>{{.Prompt}}</pre>
+        <h3>会話履歴</h3>
+        {{range .History}}<div class="role">{{.Role}}</div><pre>{{.Content}}</pre>{{else}}<p class="note">履歴なし</p>{{end}}
+        {{if .Clarifications}}<h3>確認質問</h3><ul>{{range .Clarifications}}<li>{{.}}</li>{{end}}</ul>{{end}}
+      </details>
+    </article>
+    {{end}}
+  </section>
+</main>
+<script>
+const filter = document.getElementById('filter');
+filter.addEventListener('change', () => {
+  let visible = 0;
+  for (const card of document.querySelectorAll('.case')) {
+    card.hidden = filter.value === 'mismatch' && card.dataset.mismatch !== 'true';
+    if (!card.hidden) visible++;
+  }
+  document.getElementById('empty').hidden = visible > 0;
+});
+</script>
+</html>
