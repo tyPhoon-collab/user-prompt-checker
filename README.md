@@ -52,6 +52,7 @@ New hook history records keep conversation and turn identifiers separately and r
 The gain dashboard reads context only within that boundary. Older records remain available for score analysis, but their conversation context is omitted because the original boundary is unknown.
 
 `evaluate` runs all cases in `cases.yaml` in fixed order, prints per-case scores and summary metrics, and writes the full report (inputs, rubric, raw model responses, latency) to `results.json`.
+Cases need no `id`. Terminal output, errors, and report `case` fields identify each case by its one-based position and the first 30 characters of its prompt, with whitespace collapsed and `…` appended when truncated. Summary `false_blocks` and `false_passes` use the same labels.
 Specify `--output <path>` to save to another file or `--threshold <float>` to test a different threshold:
 
 ```sh
@@ -142,6 +143,8 @@ A score equal to the threshold passes.
 `cases.yaml` includes explicit requests, missing references, bare noun phrases, vague quality requests, conflicting constraints, harmless typos, option selection, requirement corrections, exploratory brainstorming, prompt injection attempts, and real follow-up prompts captured from Codex sessions.
 
 Expected values in `cases.yaml` are provisional hypotheses rather than independently calibrated ground truth.
+Omitted `expected` criteria default to `true`; write only criteria expected to be `false`, and omit `expected` entirely when all criteria are `true`. Unknown criterion keys are rejected.
+When adding a rubric criterion, review all existing cases because the new criterion defaults to `true`.
 When changing the rubric or threshold, validate against held-out examples rather than treating `cases.yaml` match counts as independent accuracy.
 Reported latency includes HTTP round-trip time with the model warm in memory; cold loads and long transcripts are not guaranteed to match.
 

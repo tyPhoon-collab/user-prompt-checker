@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -16,7 +17,6 @@ import (
 )
 
 type Case struct {
-	ID       string            `json:"id" yaml:"id"`
 	Source   string            `json:"source,omitempty" yaml:"source,omitempty"`
 	Prompt   string            `json:"prompt" yaml:"prompt"`
 	History  []checker.Message `json:"history,omitempty" yaml:"history,omitempty"`
@@ -25,7 +25,7 @@ type Case struct {
 
 type Row struct {
 	checker.Result
-	ID       string          `json:"id"`
+	Case     string          `json:"case"`
 	Source   string          `json:"source"`
 	Expected map[string]bool `json:"expected"`
 }
@@ -38,6 +38,14 @@ type Summary struct {
 	FalsePasses   []string           `json:"false_passes"`
 	AspectMatches map[string]int     `json:"aspect_matches"`
 	LatencyMS     map[string]float64 `json:"latency_ms"`
+}
+
+func caseLabel(number int, prompt string) string {
+	excerpt := []rune(strings.Join(strings.Fields(prompt), " "))
+	if len(excerpt) > 30 {
+		excerpt = append(excerpt[:30], '…')
+	}
+	return fmt.Sprintf("%d: %s", number, string(excerpt))
 }
 
 func Summarize(rows []Row, rubric checker.Rubric, threshold float64) Summary {
@@ -63,9 +71,9 @@ func Summarize(rows []Row, rubric checker.Rubric, threshold float64) Summary {
 		if row.Pass == expPass {
 			gateMatches++
 		} else if expPass && !row.Pass {
-			falseBlocks = append(falseBlocks, row.ID)
+			falseBlocks = append(falseBlocks, row.Case)
 		} else if !expPass && row.Pass {
-			falsePasses = append(falsePasses, row.ID)
+			falsePasses = append(falsePasses, row.Case)
 		}
 	}
 	first, median, maxVal := 0.0, 0.0, 0.0
@@ -105,22 +113,24 @@ func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config
 		return errors.New("cases must be a non-empty YAML/JSON array")
 	}
 	keys := checker.OrderedKeys(rubric)
-	seenIDs := make(map[string]bool, len(cases))
-	for _, c := range cases {
-		if c.ID == "" || seenIDs[c.ID] {
-			return fmt.Errorf("duplicate or empty case ID: %s", c.ID)
+	for i := range cases {
+		c := &cases[i]
+		label := caseLabel(i+1, c.Prompt)
+		for k := range c.Expected {
+			if _, ok := rubric[k]; !ok {
+				return fmt.Errorf("unknown expected key %s in case %s", k, label)
+			}
 		}
-		seenIDs[c.ID] = true
-		if len(c.Expected) != len(rubric) {
-			return fmt.Errorf("expected criteria mismatch in case %s", c.ID)
+		if c.Expected == nil {
+			c.Expected = make(map[string]bool, len(rubric))
 		}
 		for _, k := range keys {
 			if _, ok := c.Expected[k]; !ok {
-				return fmt.Errorf("missing expected key %s in case %s", k, c.ID)
+				c.Expected[k] = true
 			}
 		}
 		if _, err := checker.MakePayload(c.Prompt, c.History, rubric, cfg.Model); err != nil {
-			return fmt.Errorf("case %s: %w", c.ID, err)
+			return fmt.Errorf("case %s: %w", label, err)
 		}
 	}
 
@@ -132,10 +142,11 @@ func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config
 	fmt.Fprintln(stdout, header)
 
 	rows := make([]Row, 0, len(cases))
-	for _, c := range cases {
+	for i, c := range cases {
+		label := caseLabel(i+1, c.Prompt)
 		res, err := checker.Check(c.Prompt, c.History, rubric, cfg, client)
 		if err != nil {
-			return fmt.Errorf("case %s: %w", c.ID, err)
+			return fmt.Errorf("case %s: %w", label, err)
 		}
 		src := c.Source
 		if src == "" {
@@ -143,12 +154,12 @@ func Run(casesPath, outputPath string, rubric checker.Rubric, cfg checker.Config
 		}
 		row := Row{
 			Result:   res,
-			ID:       c.ID,
+			Case:     label,
 			Source:   src,
 			Expected: c.Expected,
 		}
 		rows = append(rows, row)
-		line := fmt.Sprintf("%-36s", row.ID)
+		line := fmt.Sprintf("%-36s", row.Case)
 		for _, k := range keys {
 			line += fmt.Sprintf(" %19.3f", row.Scores[k])
 		}
