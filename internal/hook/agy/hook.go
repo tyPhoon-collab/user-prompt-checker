@@ -17,8 +17,6 @@ import (
 	"user-prompt-checker/internal/hook"
 )
 
-const maxHistoryMessages = 10
-
 var userRequestRegex = regexp.MustCompile(`(?s)<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>`)
 var uploadedImagesRegex = regexp.MustCompile(`The user has uploaded (\d+)\s+image\(s\):`)
 var skillTagRegex = regexp.MustCompile(`(?s)<skill>.*?</skill>`)
@@ -56,6 +54,70 @@ func CountAttachedImages(raw string) int {
 	return 0
 }
 
+func unquoteArg(v any) string {
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	s = strings.TrimSpace(s)
+	if strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
+		var unq string
+		if err := json.Unmarshal([]byte(s), &unq); err == nil {
+			return strings.TrimSpace(unq)
+		}
+	}
+	return s
+}
+
+func extractToolContext(toolCalls []struct {
+	Name string         `json:"name"`
+	Args map[string]any `json:"args"`
+}) (string, []string) {
+	var questions []string
+	var edited []string
+	for _, tc := range toolCalls {
+		switch tc.Name {
+		case "edit_file", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file":
+			p := unquoteArg(tc.Args["Path"])
+			if p == "" {
+				p = unquoteArg(tc.Args["TargetFile"])
+			}
+			if p != "" {
+				edited = append(edited, p)
+			}
+		case "ask_question":
+			var raw []byte
+			if s, ok := tc.Args["questions"].(string); ok {
+				raw = []byte(s)
+			} else {
+				var err error
+				raw, err = json.Marshal(tc.Args["questions"])
+				if err != nil {
+					continue
+				}
+			}
+			var qs []struct {
+				Question string   `json:"question"`
+				Options  []string `json:"options"`
+			}
+			if err := json.Unmarshal(raw, &qs); err != nil {
+				continue
+			}
+			for _, q := range qs {
+				text := strings.TrimSpace(q.Question)
+				if text == "" {
+					continue
+				}
+				if len(q.Options) > 0 {
+					text += " (" + strings.Join(q.Options, " / ") + ")"
+				}
+				questions = append(questions, text)
+			}
+		}
+	}
+	return strings.Join(questions, "\n"), edited
+}
+
 // HistoryFromSnapshot also reports whether the latest user input already has a model response.
 func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Message, bool, error) {
 	history := []checker.Message{}
@@ -63,6 +125,8 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 	unansweredUser := false
 	currentUser := false
 	continuation := false
+	hasAssistantInTurn := false
+	var turnEdited []string
 
 	for _, line := range strings.Split(snapshot, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -70,42 +134,62 @@ func HistoryFromSnapshot(snapshot string, currentPrompt string) ([]checker.Messa
 			continue
 		}
 		var row struct {
-			Type    string `json:"type"`
-			Source  string `json:"source"`
-			Content string `json:"content"`
+			Type      string `json:"type"`
+			Source    string `json:"source"`
+			Content   string `json:"content"`
+			ToolCalls []struct {
+				Name string         `json:"name"`
+				Args map[string]any `json:"args"`
+			} `json:"tool_calls"`
 		}
 		if err := json.Unmarshal([]byte(trimmed), &row); err != nil {
 			return nil, false, fmt.Errorf("failed to parse transcript line: %w", err)
 		}
 		switch row.Type {
 		case "USER_INPUT":
+			history = hook.FlushTurnEdits(history, hasAssistantInTurn, turnEdited)
+			hasAssistantInTurn = false
+			turnEdited = nil
 			unansweredUser = false
 			prompt := CleanUserPrompt(row.Content)
 			currentUser = prompt != "" && prompt == cleanedCurrent
 			continuation = false
-			if prompt == "" || prompt == cleanedCurrent {
+			if prompt == "" {
 				continue
 			}
-			history = append(history, checker.Message{Role: "user", Content: prompt})
+			history = append(history, checker.Message{Role: "user", Content: hook.TruncateContent(prompt, hook.MaxMessageRunes)})
 			unansweredUser = true
 		case "PLANNER_RESPONSE":
 			unansweredUser = false
 			continuation = currentUser
+			questionText, edited := extractToolContext(row.ToolCalls)
+			turnEdited = append(turnEdited, edited...)
 			content := strings.TrimSpace(row.Content)
+			if questionText != "" {
+				if content != "" {
+					content += "\n" + questionText
+				} else {
+					content = questionText
+				}
+			}
 			if content != "" {
-				history = append(history, checker.Message{Role: "assistant", Content: content})
+				history = append(history, checker.Message{Role: "assistant", Content: hook.TruncateContent(content, hook.MaxMessageRunes)})
+				hasAssistantInTurn = true
 			}
 		case "ERROR_MESSAGE":
+			hasAssistantInTurn = false
+			turnEdited = nil
 			if unansweredUser {
 				history = history[:len(history)-1]
 				unansweredUser = false
 			}
 		}
 	}
-	if len(history) > maxHistoryMessages {
-		history = history[len(history)-maxHistoryMessages:]
+	if unansweredUser && currentUser && len(history) > 0 {
+		history = history[:len(history)-1]
 	}
-	return history, continuation, nil
+	history = hook.FlushTurnEdits(history, hasAssistantInTurn, turnEdited)
+	return hook.TrimHistory(history), continuation, nil
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {

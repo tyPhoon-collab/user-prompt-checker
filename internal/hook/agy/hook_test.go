@@ -360,3 +360,44 @@ func TestAgyHistoryWindowAndSkillStripping(t *testing.T) {
 		t.Fatalf("expected 'real command', got %q", lastUser.Content)
 	}
 }
+
+func TestAgyExtractsToolCallsAndEditedFiles(t *testing.T) {
+	lines := []string{
+		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"Update config"}`,
+		`{"type":"PLANNER_RESPONSE","source":"MODEL","content":"","tool_calls":[{"name":"edit_file","args":{"Path":"\"/repo/config.yaml\""}},{"name":"write_file","args":{"Path":"/repo/new.go"}}]}`,
+		`{"type":"PLANNER_RESPONSE","source":"MODEL","content":"Which format?","tool_calls":[{"name":"ask_question","args":{"questions":[{"question":"Pick format","options":["YAML","JSON"]}]}}]}`,
+	}
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "YAML")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []checker.Message{
+		{Role: "user", Content: "Update config"},
+		{Role: "assistant", Content: "Which format?\nPick format (YAML / JSON)\n[Edited files: /repo/config.yaml, /repo/new.go]"},
+	}
+	if diff := cmp.Diff(want, history); diff != "" {
+		t.Fatalf("history mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestAgyPreservesEarlierIdenticalUserPrompts(t *testing.T) {
+	lines := []string{
+		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>対応してください。</USER_REQUEST>"}`,
+		`{"type":"PLANNER_RESPONSE","source":"MODEL","content":"1件目を修正しました。次の箇所も進めますか？"}`,
+		`{"type":"USER_INPUT","source":"USER_EXPLICIT","content":"<USER_REQUEST>対応してください。</USER_REQUEST>"}`,
+	}
+	history, continuation, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "対応してください。")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if continuation {
+		t.Fatal("expected continuation=false for new identical user input")
+	}
+	want := []checker.Message{
+		{Role: "user", Content: "対応してください。"},
+		{Role: "assistant", Content: "1件目を修正しました。次の箇所も進めますか？"},
+	}
+	if diff := cmp.Diff(want, history); diff != "" {
+		t.Fatalf("history mismatch (-want +got):\n%s", diff)
+	}
+}

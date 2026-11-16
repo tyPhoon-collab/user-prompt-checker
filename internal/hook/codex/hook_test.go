@@ -246,6 +246,25 @@ func TestOnlyLastTenMessagesAreSent(t *testing.T) {
 	}
 }
 
+func TestExtractsEditedFilesFromPatchCalls(t *testing.T) {
+	lines := []string{
+		makeTranscriptMessage("user", "Fix the bug", "turn-1", "user", ""),
+		`{"type":"response_item","payload":{"type":"custom_tool_call","name":"exec","input":"text(await tools.apply_patch(\"*** Begin Patch\\n*** Update File: /repo/main.go\\n@@\\n*** Add File: /repo/main_test.go\\n*** End Patch\"));","internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}}}`,
+		makeTranscriptMessage("assistant", "Updated the implementation.", "turn-1", "user", "final_answer"),
+	}
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "turn-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []checker.Message{
+		{Role: "user", Content: "Fix the bug"},
+		{Role: "assistant", Content: "Updated the implementation.\n[Edited files: /repo/main.go, /repo/main_test.go]"},
+	}
+	if diff := cmp.Diff(want, history); diff != "" {
+		t.Fatalf("history mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestSkillTagsAreStrippedFromHistory(t *testing.T) {
 	lines := []string{
 		makeTranscriptMessage("user", "<skill>\n<name>hunk-review</name>\nSKILL BODY CONTENT\n</skill>", "turn-1", "user", ""),
@@ -503,5 +522,31 @@ func TestEmptyTranscriptPathAllowsExecution(t *testing.T) {
 	// エラーで block されず、正常に allow（空レスポンス）であること
 	if resp["decision"] == "block" {
 		t.Fatalf("expected non-block response when transcript_path is empty, got %v", resp)
+	}
+}
+
+func TestLongFinalAnswerTruncatesWhilePreservingEditedFiles(t *testing.T) {
+	longReply := strings.Repeat("開始 ", 150) + strings.Repeat("詳細 ", 300) + "最後に確認してください。"
+	lines := []string{
+		makeTranscriptMessage("user", "設定の読み込み処理を見直して", "turn-1", "user", ""),
+		`{"type":"response_item","payload":{"type":"custom_tool_call","name":"exec","input":"text(await tools.apply_patch(\"*** Begin Patch\\n*** Update File: /repo/internal/config.go\\n*** End Patch\"));","internal_chat_message_metadata_passthrough":{"turn_id":"turn-1"}}}`,
+		makeTranscriptMessage("assistant", longReply, "turn-1", "user", "final_answer"),
+	}
+	history, _, err := HistoryFromSnapshot(strings.Join(lines, "\n"), "turn-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(history))
+	}
+	got := history[1].Content
+	if !strings.Contains(got, "\n...\n") {
+		t.Fatalf("expected truncated assistant message to contain ellipsis, got: %q", got)
+	}
+	if !strings.Contains(got, "最後に確認してください。") {
+		t.Fatalf("expected tail of assistant message preserved, got: %q", got)
+	}
+	if !strings.HasSuffix(got, "[Edited files: /repo/internal/config.go]") {
+		t.Fatalf("expected edited files suffix preserved, got: %q", got)
 	}
 }

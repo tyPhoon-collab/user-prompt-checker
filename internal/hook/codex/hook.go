@@ -16,9 +16,21 @@ import (
 	"user-prompt-checker/internal/hook"
 )
 
-const maxHistoryMessages = 10
-
 var skillTagRegex = regexp.MustCompile(`(?s)<skill>.*?</skill>`)
+var patchFileRegex = regexp.MustCompile(`(?m)^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+?)\s*$`)
+
+func extractPatchFiles(input string) []string {
+	normalized := strings.ReplaceAll(input, `\r\n`, "\n")
+	normalized = strings.ReplaceAll(normalized, `\n`, "\n")
+	matches := patchFileRegex.FindAllStringSubmatch(normalized, -1)
+	files := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) > 1 {
+			files = append(files, strings.TrimSpace(m[1]))
+		}
+	}
+	return files
+}
 
 func stripSkillTags(s string) string {
 	return strings.TrimSpace(skillTagRegex.ReplaceAllString(s, ""))
@@ -71,6 +83,8 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 	history := []checker.Message{}
 	var warnings []string
 	warnedProvenance := false
+	hasAssistantInTurn := false
+	var turnEdited []string
 
 	// shortcut: private JSONL schema for Codex CLI 0.166.0; revisit after CLI updates.
 	for _, line := range strings.Split(snapshot, "\n") {
@@ -85,6 +99,7 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 				Phase     string `json:"phase"`
 				Name      string `json:"name"`
 				Arguments string `json:"arguments"`
+				Input     string `json:"input"`
 				Content   []struct {
 					Type string `json:"type"`
 					Text string `json:"text"`
@@ -104,6 +119,14 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 		}
 		p := row.Payload
 		if p.Metadata.TurnID == currentTurnID {
+			continue
+		}
+		if (p.Type == "custom_tool_call" && (p.Name == "exec" || p.Name == "apply_patch")) || (p.Type == "function_call" && p.Name == "apply_patch") {
+			rawInput := p.Input
+			if rawInput == "" {
+				rawInput = p.Arguments
+			}
+			turnEdited = append(turnEdited, extractPatchFiles(rawInput)...)
 			continue
 		}
 		if p.Type == "function_call" && p.Name == "request_user_input_async" {
@@ -129,7 +152,8 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 					}
 				}
 				if len(parts) > 0 {
-					history = append(history, checker.Message{Role: "assistant", Content: strings.Join(parts, "\n")})
+					history = append(history, checker.Message{Role: "assistant", Content: hook.TruncateContent(strings.Join(parts, "\n"), hook.MaxMessageRunes)})
+					hasAssistantInTurn = true
 				}
 			}
 			continue
@@ -139,6 +163,9 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 		}
 		var texts []string
 		if p.Role == "user" {
+			history = hook.FlushTurnEdits(history, hasAssistantInTurn, turnEdited)
+			hasAssistantInTurn = false
+			turnEdited = nil
 			var itemMeta []struct {
 				Provenance struct {
 					Type string `json:"type"`
@@ -175,13 +202,14 @@ func HistoryFromSnapshot(snapshot string, currentTurnID string) ([]checker.Messa
 		}
 		joined := stripSkillTags(strings.Join(texts, "\n"))
 		if joined != "" {
-			history = append(history, checker.Message{Role: p.Role, Content: joined})
+			history = append(history, checker.Message{Role: p.Role, Content: hook.TruncateContent(joined, hook.MaxMessageRunes)})
+			if p.Role == "assistant" {
+				hasAssistantInTurn = true
+			}
 		}
 	}
-	if len(history) > maxHistoryMessages {
-		history = history[len(history)-maxHistoryMessages:]
-	}
-	return history, warnings, nil
+	history = hook.FlushTurnEdits(history, hasAssistantInTurn, turnEdited)
+	return hook.TrimHistory(history), warnings, nil
 }
 
 func Run(stdin io.Reader, stdout io.Writer, rubric checker.Rubric, cfg checker.Config, client *http.Client) {
