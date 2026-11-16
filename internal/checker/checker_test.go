@@ -81,9 +81,8 @@ func TestMissingOrInvalidModelScoresAreErrors(t *testing.T) {
 	for _, val := range []any{nil, true, "0.9", -0.1, 1.1} {
 		raw := map[string]any{
 			"answers": map[string]any{
-				"intent_clear":       map[string]any{"type": "noul", "noul": val},
-				"context_sufficient": map[string]any{"type": "noul", "noul": 0.8},
-				"consistent":         map[string]any{"type": "noul", "noul": 0.8},
+				"complete":   map[string]any{"type": "noul", "noul": val},
+				"actionable": map[string]any{"type": "noul", "noul": 0.8},
 			},
 		}
 		if _, err := ExtractScores(raw, rubric); err == nil {
@@ -97,11 +96,11 @@ func TestMissingOrInvalidModelScoresAreErrors(t *testing.T) {
 
 func TestOneLowAspectBlocksAndBoundaryPasses(t *testing.T) {
 	rubric := mustLoadRubric(t)
-	scores1 := map[string]float64{"intent_clear": 0.6, "context_sufficient": 0.5999, "consistent": 0.9}
-	if diff := cmp.Diff([]string{"context_sufficient"}, Decide(scores1, rubric, 0.6)); diff != "" {
+	scores1 := map[string]float64{"complete": 0.6, "actionable": 0.5999}
+	if diff := cmp.Diff([]string{"actionable"}, Decide(scores1, rubric, 0.6)); diff != "" {
 		t.Fatalf("failed aspects mismatch (-want +got):\n%s", diff)
 	}
-	scores2 := map[string]float64{"intent_clear": 0.6, "context_sufficient": 0.6, "consistent": 1.0}
+	scores2 := map[string]float64{"complete": 0.6, "actionable": 0.6}
 	if diff := cmp.Diff([]string{}, Decide(scores2, rubric, 0.6)); diff != "" {
 		t.Fatalf("boundary pass mismatch (-want +got):\n%s", diff)
 	}
@@ -169,9 +168,8 @@ func TestLoadRubricSupportsJSONAndRejectsUnknownFields(t *testing.T) {
 	dir := t.TempDir()
 	jsonPath := filepath.Join(dir, "rubric.json")
 	validJSON := `{
-		"intent_clear": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"},
-		"context_sufficient": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"},
-		"consistent": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"}
+		"complete": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"},
+		"actionable": {"label": "a", "question": "q", "criteria": {"true": "t", "false": "f"}, "clarification": "c"}
 	}`
 	if err := os.WriteFile(jsonPath, []byte(validJSON), 0o600); err != nil {
 		t.Fatal(err)
@@ -181,7 +179,7 @@ func TestLoadRubricSupportsJSONAndRejectsUnknownFields(t *testing.T) {
 	}
 
 	typoPath := filepath.Join(dir, "typo.yaml")
-	typoYAML := "intent_clear:\n  labl: typo\n  question: q\n  criteria:\n    \"true\": t\n    \"false\": f\n  clarification: c\n"
+	typoYAML := "complete:\n  labl: typo\n  question: q\n  criteria:\n    \"true\": t\n    \"false\": f\n  clarification: c\n"
 	if err := os.WriteFile(typoPath, []byte(typoYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}

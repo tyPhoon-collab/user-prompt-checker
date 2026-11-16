@@ -98,9 +98,8 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
-					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+					"complete":   map[string]any{"type": "noul", "noul": 0.95},
+					"actionable": map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)
@@ -142,7 +141,7 @@ func TestRunSkipsContinuationsAndEvaluatesNewUserInputs(t *testing.T) {
 		calls++
 		return &http.Response{
 			StatusCode: http.StatusOK,
-			Body:       io.NopCloser(strings.NewReader(`{"answers":{"intent_clear":{"type":"noul","noul":0.9},"context_sufficient":{"type":"noul","noul":0.9},"consistent":{"type":"noul","noul":0.9}}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"answers":{"complete":{"type":"noul","noul":0.9},"actionable":{"type":"noul","noul":0.9}}}`)),
 		}, nil
 	})}
 	cfg := checker.Config{Model: "d1:2b", URL: "http://localhost:11434", Threshold: 0.6, Timeout: time.Second}
@@ -229,7 +228,7 @@ func TestBlockReturnsTerminateAndErrorMessage(t *testing.T) {
 		ConversationID: "conv1",
 		LastUserInput:  "Fix it.",
 	})
-	mockBody := `{"answers":{"intent_clear":{"type":"noul","noul":0.9},"context_sufficient":{"type":"noul","noul":0.1},"consistent":{"type":"noul","noul":0.9}}}`
+	mockBody := `{"answers":{"complete":{"type":"noul","noul":0.9},"actionable":{"type":"noul","noul":0.1}}}`
 	client := &http.Client{
 		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
 			return &http.Response{
@@ -259,7 +258,7 @@ func TestBlockReturnsTerminateAndErrorMessage(t *testing.T) {
 	if resp.TerminationBehavior != "terminate" {
 		t.Fatalf("expected terminate, got %q", resp.TerminationBehavior)
 	}
-	if len(resp.InjectSteps) != 1 || !strings.Contains(resp.InjectSteps[0].ErrorMessage.UserMessage, "文脈の充足度") {
+	if len(resp.InjectSteps) != 1 || !strings.Contains(resp.InjectSteps[0].ErrorMessage.UserMessage, "対応の妥当性") {
 		t.Fatalf("unexpected injectSteps: %+v", resp.InjectSteps)
 	}
 }

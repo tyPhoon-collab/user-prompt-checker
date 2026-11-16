@@ -1,6 +1,6 @@
 # user-prompt-checker
 
-A standalone Go CLI and agent lifecycle hook (supporting both OpenAI Codex and Google Antigravity / AGY) that checks user prompts and optional conversation history against three criteria in a single Ollama `d1:2b` `/v1/systemone` API call.
+A standalone Go CLI and agent lifecycle hook (supporting both OpenAI Codex and Google Antigravity / AGY) that checks user prompts and optional conversation history against two criteria in a single Ollama `d1:2b` `/v1/systemone` API call.
 The default rubric is embedded directly into the binary.
 
 ## Build and Install
@@ -85,7 +85,7 @@ flowchart LR
     subgraph UPC["user-prompt-checker"]
         CLI["CLI / Hook Runner"]
         Parser["Transcript Parser"]
-        Rubric["Embedded Rubric (3 criteria)"]
+        Rubric["Embedded Rubric (2 criteria)"]
         Engine["Score & Decision Engine"]
     end
 
@@ -120,7 +120,7 @@ flowchart TD
     NetResult -- "Connection Refused / Timeout" --> AllowNet["Allow: return empty JSON {}\n(No record written)"]
     NetResult -- "Other Error" --> BlockError
     NetResult -- "Evaluation complete" --> SaveHistory["Append Prompt Record\n(monthly history JSONL)"]
-    SaveHistory --> EvaluateScores{"All 3 scores >= threshold (0.6)?"}
+    SaveHistory --> EvaluateScores{"All 2 scores >= threshold (0.6)?"}
 
     EvaluateScores -- "Yes (All pass)" --> AllowPass["Allow: return empty JSON {}"]
     EvaluateScores -- "No (Any below 0.6)" --> BlockDecision["Block: return decision block\nPlain-text clarifications & metrics"]
@@ -128,13 +128,12 @@ flowchart TD
 
 ## Evaluation Criteria
 
-`internal/checker/rubric.yaml` (embedded by default, overrideable via `--rubric` in YAML or JSON) defines three independent criteria evaluated in Japanese:
+`internal/checker/rubric.yaml` (embedded by default, overrideable via `--rubric` in YAML or JSON) defines two independent criteria evaluated in Japanese:
 
 | Criterion | What it checks |
 | --- | --- |
-| `intent_clear` | 単なる名詞句ではなく、行動の要求、質問、または会話の返答を表現しているか |
-| `context_sufficient` | プロンプト単体または直前の会話を踏まえて、対象と期待する結果を特定できるか |
-| `consistent` | プロンプトと会話内の要求が論理的に両立可能か（指示の訂正や変更は上書きとみなす） |
+| `complete` | 途中送信や言い差し、単なる名詞句・挨拶ではなく、完結した発話（指示・質問・相談・返答・承認）になっているか |
+| `actionable` | 単体または直前の会話を踏まえて、対象と進むべき方向を矛盾なく特定し、エージェントが迷わず対応できるか |
 
 User input can be in any language supported by `d1:2b` (current test cases cover Japanese and English; broader multilingual accuracy has not been independently verified).
 Each score is the raw `noul` value returned by `/v1/systemone`.

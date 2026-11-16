@@ -79,10 +79,10 @@ func TestRunExpectedDefaults(t *testing.T) {
 		want     map[string]bool
 		wantErr  string
 	}{
-		{"omitted", "", map[string]bool{"intent_clear": true, "context_sufficient": true}, ""},
-		{"empty", "  expected: {}\n", map[string]bool{"intent_clear": true, "context_sufficient": true}, ""},
-		{"partial", "  expected:\n    context_sufficient: false\n", map[string]bool{"intent_clear": true, "context_sufficient": false}, ""},
-		{"explicit", "  expected:\n    intent_clear: false\n    context_sufficient: true\n", map[string]bool{"intent_clear": false, "context_sufficient": true}, ""},
+		{"omitted", "", map[string]bool{"complete": true, "actionable": true}, ""},
+		{"empty", "  expected: {}\n", map[string]bool{"complete": true, "actionable": true}, ""},
+		{"partial", "  expected:\n    actionable: false\n", map[string]bool{"complete": true, "actionable": false}, ""},
+		{"explicit", "  expected:\n    complete: false\n    actionable: true\n", map[string]bool{"complete": false, "actionable": true}, ""},
 		{"unknown", "  expected:\n    intent_cler: false\n", nil, "unknown expected key intent_cler in case 1: /test"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -116,12 +116,11 @@ func TestRunExpectedDefaults(t *testing.T) {
 			if len(report.Results) != 1 {
 				t.Fatalf("got %d results; want 1", len(report.Results))
 			}
-			tc.want["consistent"] = true
 			if diff := cmp.Diff(tc.want, report.Results[0].Expected); diff != "" {
 				t.Fatalf("expected mismatch (-want +got):\n%s", diff)
 			}
 			wantMatches := 0
-			if tc.want["intent_clear"] && tc.want["context_sufficient"] {
+			if tc.want["complete"] && tc.want["actionable"] {
 				wantMatches = 1
 			}
 			if report.Summary.GateMatches != wantMatches {
@@ -132,23 +131,23 @@ func TestRunExpectedDefaults(t *testing.T) {
 }
 
 func TestSummaryDistinguishesFalseBlocksAndFalsePasses(t *testing.T) {
-	rubric := checker.Rubric{"intent_clear": {}}
+	rubric := checker.Rubric{"complete": {}}
 	rows := []Row{
 		{
 			Case:     "1: good",
-			Expected: map[string]bool{"intent_clear": true},
+			Expected: map[string]bool{"complete": true},
 			Result: checker.Result{
 				Pass:      false,
-				Scores:    map[string]float64{"intent_clear": 0.2},
+				Scores:    map[string]float64{"complete": 0.2},
 				ElapsedMS: 10,
 			},
 		},
 		{
 			Case:     "2: bad",
-			Expected: map[string]bool{"intent_clear": false},
+			Expected: map[string]bool{"complete": false},
 			Result: checker.Result{
 				Pass:      true,
-				Scores:    map[string]float64{"intent_clear": 0.9},
+				Scores:    map[string]float64{"complete": 0.9},
 				ElapsedMS: 20,
 			},
 		},
@@ -159,7 +158,7 @@ func TestSummaryDistinguishesFalseBlocksAndFalsePasses(t *testing.T) {
 		GateMatches:   0,
 		FalseBlocks:   []string{"1: good"},
 		FalsePasses:   []string{"2: bad"},
-		AspectMatches: map[string]int{"intent_clear": 0},
+		AspectMatches: map[string]int{"complete": 0},
 		LatencyMS:     map[string]float64{"first": 10, "median": 15, "max": 20},
 	}
 	if diff := cmp.Diff(want, Summarize(rows, rubric, 0.6)); diff != "" {

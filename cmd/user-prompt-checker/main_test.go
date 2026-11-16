@@ -23,7 +23,7 @@ func TestHookConfigurationErrors(t *testing.T) {
 			reason string
 		}{
 			{"invalid threshold", []string{"--threshold=1.5"}, "invalid threshold or timeout"},
-			{"invalid rubric", []string{"--rubric", rubricPath}, "rubric must define exactly 3 criteria"},
+			{"invalid rubric", []string{"--rubric", rubricPath}, "rubric must define exactly 2 criteria"},
 		} {
 			t.Run(agent+"/"+tc.name, func(t *testing.T) {
 				var out, errBuf bytes.Buffer

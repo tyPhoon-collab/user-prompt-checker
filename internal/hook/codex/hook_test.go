@@ -382,9 +382,8 @@ func TestRunPassesAttachedImagesToPrompt(t *testing.T) {
 
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
-					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+					"complete":   map[string]any{"type": "noul", "noul": 0.95},
+					"actionable": map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)
@@ -427,9 +426,8 @@ func TestMissingProvenanceInjectsWarningContextInRun(t *testing.T) {
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
-					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+					"complete":   map[string]any{"type": "noul", "noul": 0.95},
+					"actionable": map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)
@@ -474,9 +472,8 @@ func TestEmptyTranscriptPathAllowsExecution(t *testing.T) {
 		Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 			resp := map[string]any{
 				"answers": map[string]any{
-					"intent_clear":       map[string]any{"type": "noul", "noul": 0.95},
-					"context_sufficient": map[string]any{"type": "noul", "noul": 0.95},
-					"consistent":         map[string]any{"type": "noul", "noul": 0.95},
+					"complete":   map[string]any{"type": "noul", "noul": 0.95},
+					"actionable": map[string]any{"type": "noul", "noul": 0.95},
 				},
 			}
 			b, _ := json.Marshal(resp)

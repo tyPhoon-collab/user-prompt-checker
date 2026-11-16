@@ -16,18 +16,18 @@ func TestHTMLReportShowsMismatchesAndEscapesInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := []Row{
-		{Case: "1: false block", Expected: map[string]bool{"intent_clear": true, "context_sufficient": true, "consistent": true}, Result: checker.Result{
+		{Case: "1: false block", Expected: map[string]bool{"complete": true, "actionable": true}, Result: checker.Result{
 			Prompt: `<script>alert("prompt")</script>`, History: []checker.Message{{Role: "user", Content: "<img src=x onerror=alert(1)>"}},
-			Scores: map[string]float64{"intent_clear": 0.2, "context_sufficient": 0.9, "consistent": 0.9}, Clarifications: []string{"<b>question</b>"},
+			Scores: map[string]float64{"complete": 0.2, "actionable": 0.9}, Clarifications: []string{"<b>question</b>"},
 		}},
-		{Case: "2: false pass", Expected: map[string]bool{"intent_clear": false, "context_sufficient": true, "consistent": true}, Result: checker.Result{
-			Pass: true, Scores: map[string]float64{"intent_clear": 0.6, "context_sufficient": 0.9, "consistent": 0.9},
+		{Case: "2: false pass", Expected: map[string]bool{"complete": false, "actionable": true}, Result: checker.Result{
+			Pass: true, Scores: map[string]float64{"complete": 0.6, "actionable": 0.9},
 		}},
-		{Case: "3: aspect mismatch", Expected: map[string]bool{"intent_clear": false, "context_sufficient": true, "consistent": true}, Result: checker.Result{
-			Scores: map[string]float64{"intent_clear": 0.6, "context_sufficient": 0.2, "consistent": 0.9},
+		{Case: "3: aspect mismatch", Expected: map[string]bool{"complete": false, "actionable": true}, Result: checker.Result{
+			Scores: map[string]float64{"complete": 0.6, "actionable": 0.2},
 		}},
-		{Case: "4: match", Expected: map[string]bool{"intent_clear": true, "context_sufficient": true, "consistent": true}, Result: checker.Result{
-			Pass: true, Scores: map[string]float64{"intent_clear": 0.6, "context_sufficient": 0.9, "consistent": 0.9},
+		{Case: "4: match", Expected: map[string]bool{"complete": true, "actionable": true}, Result: checker.Result{
+			Pass: true, Scores: map[string]float64{"complete": 0.6, "actionable": 0.9},
 		}},
 	}
 	data, err := renderHTML(report{Model: "test-model", Rubric: rubric, Results: rows, Summary: Summarize(rows, rubric, 0.6)})

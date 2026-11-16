@@ -15,17 +15,15 @@ func TestFormatBlockReasonIsPlainTextWithClarificationsAndMetrics(t *testing.T) 
 		t.Fatal(err)
 	}
 	reason := FormatBlockReason(map[string]float64{
-		"intent_clear":       0.85,
-		"context_sufficient": 0.25,
-		"consistent":         0.92,
+		"complete":   0.85,
+		"actionable": 0.25,
 	}, rubric, 0.6)
 	want := strings.Join([]string{
 		"プロンプトを更新してください",
-		"  - 対象の指定、選択肢の選択、または期待する結果を具体化してください。",
+		"  - 対象の指定、選択肢の選択、または矛盾する条件の解消を行ってください。",
 		"",
-		"意図の明確さ         0.850",
-		"文脈の充足度         0.250",
-		"指示の整合性         0.920",
+		"入力の完結性         0.850",
+		"対応の妥当性         0.250",
 		"",
 		"Threshold            0.600",
 	}, "\n")
